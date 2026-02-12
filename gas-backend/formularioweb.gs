@@ -1,4 +1,4 @@
-var APP_VERSION = "event-workflow-2026-02-12-v2";
+var APP_VERSION = "event-workflow-2026-02-12-v3";
 
 var MONTH_NAMES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -37,7 +37,8 @@ function doPost(e) {
 
     return handleGuardarLegacyDia_(ss, calendars, params);
   } catch (err) {
-    return json_({ error: "Error interno", detail: String(err), version: APP_VERSION });
+    var msg = toErrorMessage_(err);
+    return json_({ error: msg, detail: String(err), version: APP_VERSION });
   }
 }
 
@@ -927,6 +928,13 @@ function hasText_(v) {
 
 function hasParam_(params, key) {
   return Object.prototype.hasOwnProperty.call(params, key);
+}
+
+function toErrorMessage_(err) {
+  if (!err) return "Error interno";
+  if (typeof err === "string") return err;
+  if (err.message) return String(err.message);
+  return String(err);
 }
 
 function json_(obj) {
