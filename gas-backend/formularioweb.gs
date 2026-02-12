@@ -1,4 +1,4 @@
-var APP_VERSION = "backend-fix-2026-02-12-v5";
+var APP_VERSION = "backend-fix-2026-02-12-v6";
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.ping === "1") {
@@ -214,9 +214,19 @@ function upsertEventoEnTodos_(calendars, idsActuales, titulo, fecha, tituloAnter
       borradoPorId = true;
     }
 
-    // Fallback legacy: si no se pudo borrar por ID, borra por titulo en ese dia.
-    if (!borradoPorId && tituloAnterior) {
-      borrarPorTituloEnCalendario_(cal, tituloAnterior, fecha);
+    // Fallback legacy: si no se pudo borrar por ID, intenta por titulos.
+    if (!borradoPorId) {
+      let borrados = 0;
+      if (tituloAnterior) {
+        borrados += borrarPorTituloEnCalendario_(cal, tituloAnterior, fecha);
+      }
+      if (titulo && titulo !== tituloAnterior) {
+        borrados += borrarPorTituloEnCalendario_(cal, titulo, fecha);
+      }
+      // Ultimo recurso para datos legacy sin IDs/titulo fiable.
+      if (borrados === 0) {
+        borrarAllDayEnCalendarioPorDia_(cal, fecha);
+      }
     }
 
     const recreated = cal.createAllDayEvent(titulo, fecha);
@@ -240,11 +250,13 @@ function borrarEventoEnTodos_(calendars, idsActuales, titulo, fecha) {
 
     if (byId) {
       byId.deleteEvent();
-      return;
     }
 
-    if (!titulo) return;
-    borrarPorTituloEnCalendario_(cal, titulo, fecha);
+    if (titulo) {
+      borrarPorTituloEnCalendario_(cal, titulo, fecha);
+    }
+    // Limpieza final de residuos legacy en ese dia.
+    borrarAllDayEnCalendarioPorDia_(cal, fecha);
   });
 }
 
@@ -265,6 +277,7 @@ function borrarPorTituloEnCalendario_(cal, titulo, fechaObjetivo) {
   const base = new Date(fechaObjetivo.getFullYear(), fechaObjetivo.getMonth(), fechaObjetivo.getDate()).getTime();
 
   const events = cal.getEvents(inicio, fin);
+  let borrados = 0;
   events.forEach(function (ev) {
     const tituloEv = String(ev.getTitle() || "").trim().toLowerCase();
     if (tituloEv !== objetivoLower) return;
@@ -273,8 +286,12 @@ function borrarPorTituloEnCalendario_(cal, titulo, fechaObjetivo) {
     const evDay = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime();
     const deltaDias = Math.abs((evDay - base) / 86400000);
 
-    if (deltaDias <= 1) ev.deleteEvent();
+    if (deltaDias <= 1) {
+      ev.deleteEvent();
+      borrados++;
+    }
   });
+  return borrados;
 }
 
 function getEventoById_(cal, id) {
@@ -292,6 +309,28 @@ function getEventoById_(cal, id) {
     }
     return null;
   }
+}
+
+function borrarAllDayEnCalendarioPorDia_(cal, fechaObjetivo) {
+  if (!fechaObjetivo) return 0;
+  const inicio = new Date(fechaObjetivo.getFullYear(), fechaObjetivo.getMonth(), fechaObjetivo.getDate() - 1);
+  const fin = new Date(fechaObjetivo.getFullYear(), fechaObjetivo.getMonth(), fechaObjetivo.getDate() + 2);
+  const base = new Date(fechaObjetivo.getFullYear(), fechaObjetivo.getMonth(), fechaObjetivo.getDate()).getTime();
+  let borrados = 0;
+
+  const events = cal.getEvents(inicio, fin);
+  events.forEach(function (ev) {
+    if (!ev.isAllDayEvent()) return;
+    const dt = ev.getAllDayStartDate();
+    const evDay = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime();
+    const deltaDias = Math.abs((evDay - base) / 86400000);
+    if (deltaDias <= 1) {
+      ev.deleteEvent();
+      borrados++;
+    }
+  });
+
+  return borrados;
 }
 
 function sanitizeIdMap_(idMap) {
