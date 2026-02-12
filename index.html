@@ -104,6 +104,11 @@
       background: var(--accent-hover);
     }
 
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
     .btn-secondary {
       background: #33414c;
     }
@@ -143,7 +148,7 @@
 
     .actions {
       display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-columns: 1fr 1fr 1fr 1fr;
       gap: 8px;
       margin-top: 4px;
     }
@@ -308,6 +313,7 @@
       <div class="actions">
         <button type="button" class="btn-danger" onclick="resetFormularioEvento();">Nuevo evento</button>
         <button type="button" class="btn-secondary" onclick="showModal('eventosModal'); cargarListaEventos();">Recuperar evento</button>
+        <button type="button" class="btn-danger" id="deleteEventoBtn" onclick="eliminarEventoActual();" disabled>Eliminar evento</button>
         <button type="submit" id="submitEventoBtn">Guardar evento</button>
       </div>
     </form>
@@ -449,6 +455,7 @@
       const modo = currentEventKey ? `Modo: editando evento (${currentEventKey})` : "Modo: creando evento nuevo";
       document.getElementById("modoEvento").textContent = modo;
       document.getElementById("submitEventoBtn").textContent = currentEventKey ? "Actualizar evento" : "Guardar evento";
+      document.getElementById("deleteEventoBtn").disabled = !currentEventKey;
       document.getElementById("eventKey").value = currentEventKey || "";
     }
 
@@ -568,6 +575,33 @@
       const ok = await cargarEventoPorKey(data.conflictEventKey, false);
       if (ok) {
         alert("Evento conflictivo cargado. Revisa los datos y pulsa Actualizar evento.");
+      }
+    }
+
+    async function eliminarEventoActual() {
+      if (!currentEventKey) {
+        alert("Primero carga un evento para eliminar.");
+        return;
+      }
+
+      const ok = confirm("Se eliminara el evento completo: Sheets y calendarios. ¿Continuar?");
+      if (!ok) return;
+
+      const fd = new FormData();
+      fd.append("modo", "eliminarEvento");
+      fd.append("eventKey", currentEventKey);
+
+      mostrarMensajeEnviando(true);
+      try {
+        const data = await postForm(fd);
+        mostrarMensajeEnviando(false);
+        if (data.error) return alert(data.error);
+
+        alert(`Evento eliminado (${data.diasEliminados || 0} dias).`);
+        resetFormularioEvento();
+      } catch (err) {
+        mostrarMensajeEnviando(false);
+        alert("Error al eliminar el evento");
       }
     }
 

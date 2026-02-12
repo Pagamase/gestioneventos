@@ -1,4 +1,4 @@
-var APP_VERSION = "event-workflow-2026-02-12-v3";
+var APP_VERSION = "event-workflow-2026-02-12-v4";
 
 var MONTH_NAMES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -34,6 +34,7 @@ function doPost(e) {
     if (modo === "listarEventos") return handleListarEventos_(ss, params);
     if (modo === "obtenerEvento") return handleObtenerEvento_(ss, params);
     if (modo === "actualizarEvento") return handleActualizarEvento_(ss, calendars, params);
+    if (modo === "eliminarEvento") return handleEliminarEvento_(ss, calendars, params);
 
     return handleGuardarLegacyDia_(ss, calendars, params);
   } catch (err) {
@@ -397,6 +398,41 @@ function handleActualizarEvento_(ss, calendars, params) {
     eventKey: eventKey,
     diasActualizados: contexts.length,
     diasEliminados: removedDays,
+    version: APP_VERSION
+  });
+}
+
+function handleEliminarEvento_(ss, calendars, params) {
+  var eventKey = String(params.eventKey || "").trim();
+  if (!eventKey) return json_({ error: "Falta eventKey", version: APP_VERSION });
+
+  var rows = collectAllEventRows_(ss).filter(function (r) {
+    return r.noteData.eventKey === eventKey;
+  });
+  rows.sort(function (a, b) { return a.date.getTime() - b.date.getTime(); });
+
+  if (rows.length === 0) {
+    return json_({ error: "Evento no encontrado", version: APP_VERSION });
+  }
+
+  var first = rows[0];
+  var last = rows[rows.length - 1];
+  borrarEventoRangoEnTodos_(
+    calendars,
+    first.noteData,
+    first.evento || first.noteData.eventName,
+    first.date,
+    last.date
+  );
+
+  rows.forEach(function (r) {
+    clearRow_(r.sheet, r.row);
+  });
+
+  return json_({
+    result: "success",
+    eventKey: eventKey,
+    diasEliminados: rows.length,
     version: APP_VERSION
   });
 }
