@@ -1,4 +1,4 @@
-var APP_VERSION = "backend-fix-2026-02-12-v4";
+var APP_VERSION = "backend-fix-2026-02-12-v5";
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.ping === "1") {
@@ -92,11 +92,12 @@ function doPost(e) {
         const fecha = parseFechaDesdeMesYDia_(mes, diaNum);
         if (!fecha) return;
 
+        const tituloAnterior = String(hoja.getRange(fila, 3).getValue() || "").trim();
         hoja.getRange(fila, 3).setValue("Descanso"); // C
         const notaRange = hoja.getRange(fila, 4);
         const notaActual = String(notaRange.getNote() || "");
         const idsActuales = parseIdsFromNote_(notaActual);
-        const nuevosIds = upsertEventoEnTodos_(calendars, idsActuales, "Descanso", fecha);
+        const nuevosIds = upsertEventoEnTodos_(calendars, idsActuales, "Descanso", fecha, tituloAnterior);
         notaRange.setNote(JSON.stringify(nuevosIds));
       });
 
@@ -129,12 +130,7 @@ function doPost(e) {
   if (evento) {
     const fecha = parseFechaDesdeMesYDia_(mes, dia);
     if (fecha) {
-      // Si no hay IDs válidos y cambia el título, limpiamos el evento anterior por fallback.
-      if (!hasAnyId_(idsActuales) && tituloAnterior && tituloAnterior !== evento) {
-        borrarPorTituloEnTodos_(calendars, tituloAnterior, fecha);
-      }
-
-      const nuevosIds = upsertEventoEnTodos_(calendars, idsActuales, evento, fecha);
+      const nuevosIds = upsertEventoEnTodos_(calendars, idsActuales, evento, fecha, tituloAnterior);
       notaRange.setNote(JSON.stringify(nuevosIds));
     }
   } else {
@@ -198,11 +194,7 @@ function parseIdsFromNote_(note) {
   }
 }
 
-function hasAnyId_(ids) {
-  return Boolean(ids && Object.keys(ids).length > 0);
-}
-
-function upsertEventoEnTodos_(calendars, idsActuales, titulo, fecha) {
+function upsertEventoEnTodos_(calendars, idsActuales, titulo, fecha, tituloAnterior) {
   const out = { ids: {} };
   const legacyKeys = ["cal1", "cal2"];
 
@@ -215,9 +207,16 @@ function upsertEventoEnTodos_(calendars, idsActuales, titulo, fecha) {
       "";
 
     const event = getEventoById_(cal, String(existingId || ""));
+    let borradoPorId = false;
 
     if (event) {
       event.deleteEvent();
+      borradoPorId = true;
+    }
+
+    // Fallback legacy: si no se pudo borrar por ID, borra por titulo en ese dia.
+    if (!borradoPorId && tituloAnterior) {
+      borrarPorTituloEnCalendario_(cal, tituloAnterior, fecha);
     }
 
     const recreated = cal.createAllDayEvent(titulo, fecha);
@@ -228,8 +227,6 @@ function upsertEventoEnTodos_(calendars, idsActuales, titulo, fecha) {
 }
 
 function borrarEventoEnTodos_(calendars, idsActuales, titulo, fecha) {
-  const inicio = new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate());
-  const fin = new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate() + 1);
   const legacyKeys = ["cal1", "cal2"];
 
   calendars.forEach(function (cal, idx) {
@@ -247,26 +244,36 @@ function borrarEventoEnTodos_(calendars, idsActuales, titulo, fecha) {
     }
 
     if (!titulo) return;
-    borrarPorTituloEnCalendario_(cal, titulo, inicio, fin);
+    borrarPorTituloEnCalendario_(cal, titulo, fecha);
   });
 }
 
 function borrarPorTituloEnTodos_(calendars, titulo, fecha) {
-  const inicio = new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate());
-  const fin = new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate() + 1);
   calendars.forEach(function (cal) {
-    borrarPorTituloEnCalendario_(cal, titulo, inicio, fin);
+    borrarPorTituloEnCalendario_(cal, titulo, fecha);
   });
 }
 
-function borrarPorTituloEnCalendario_(cal, titulo, inicio, fin) {
+function borrarPorTituloEnCalendario_(cal, titulo, fechaObjetivo) {
   const objetivo = String(titulo || "").trim();
-  if (!objetivo) return;
+  if (!objetivo || !fechaObjetivo) return;
+  const objetivoLower = objetivo.toLowerCase();
+
+  // Ventana amplia para cubrir eventos legacy con posible desfase de zona horaria.
+  const inicio = new Date(fechaObjetivo.getFullYear(), fechaObjetivo.getMonth(), fechaObjetivo.getDate() - 1);
+  const fin = new Date(fechaObjetivo.getFullYear(), fechaObjetivo.getMonth(), fechaObjetivo.getDate() + 2);
+  const base = new Date(fechaObjetivo.getFullYear(), fechaObjetivo.getMonth(), fechaObjetivo.getDate()).getTime();
+
   const events = cal.getEvents(inicio, fin);
   events.forEach(function (ev) {
-    if (ev.isAllDayEvent() && String(ev.getTitle() || "").trim() === objetivo) {
-      ev.deleteEvent();
-    }
+    const tituloEv = String(ev.getTitle() || "").trim().toLowerCase();
+    if (tituloEv !== objetivoLower) return;
+
+    const dt = ev.isAllDayEvent() ? ev.getAllDayStartDate() : ev.getStartTime();
+    const evDay = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime();
+    const deltaDias = Math.abs((evDay - base) / 86400000);
+
+    if (deltaDias <= 1) ev.deleteEvent();
   });
 }
 
