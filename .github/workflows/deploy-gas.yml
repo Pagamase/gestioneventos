@@ -1,0 +1,68 @@
+name: Deploy Apps Script
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+    paths:
+      - "gas-backend/**"
+      - ".github/workflows/deploy-gas.yml"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: gas-backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install clasp
+        run: npm install -g @google/clasp
+
+      - name: Configure clasp auth
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+        run: |
+          if [ -z "$CLASPRC_JSON" ]; then
+            echo "Missing CLASPRC_JSON secret"
+            exit 1
+          fi
+          mkdir -p "$HOME"
+          printf "%s" "$CLASPRC_JSON" > "$HOME/.clasprc.json"
+
+      - name: Push code to Apps Script
+        run: clasp push --force
+
+      - name: Create version
+        id: create_version
+        run: |
+          OUT=$(clasp version "CI ${GITHUB_SHA::7}")
+          echo "$OUT"
+          VER=$(echo "$OUT" | grep -Eo '[0-9]+' | tail -n1)
+          if [ -z "$VER" ]; then
+            echo "Could not parse version number"
+            exit 1
+          fi
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy existing Web App URL
+        env:
+          DEPLOYMENT_ID: ${{ secrets.GAS_DEPLOYMENT_ID }}
+        run: |
+          if [ -z "$DEPLOYMENT_ID" ]; then
+            echo "Missing GAS_DEPLOYMENT_ID secret"
+            exit 1
+          fi
+          clasp deploy \
+            --deploymentId "$DEPLOYMENT_ID" \
+            --versionNumber "${{ steps.create_version.outputs.version }}" \
+            --description "CI ${GITHUB_SHA::7}"
