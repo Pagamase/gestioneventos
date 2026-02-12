@@ -3,427 +3,652 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Formulario de Registro y Días Libres</title>
+  <title>Registro por Eventos</title>
   <link rel="icon" href="icons/favicon.ico" type="image/x-icon" />
   <link rel="apple-touch-icon" href="icons/icon-192x192.png" />
   <link rel="apple-touch-icon" href="icons/icon-180x180.png" />
   <link rel="manifest" href="manifest.json" />
   <style>
+    :root {
+      --bg: #101315;
+      --panel: #1a2024;
+      --text: #eef2f4;
+      --muted: #a5b1b8;
+      --accent: #2dc36a;
+      --accent-hover: #26a95b;
+      --warn: #f9c74f;
+      --danger: #e76f51;
+    }
+
     body {
-      font-family: 'Segoe UI', sans-serif;
-      background-color: #121212;
-      color: #e0e0e0;
+      margin: 0;
       padding: 20px;
-      max-width: 600px;
-      margin: auto;
+      max-width: 720px;
+      margin-inline: auto;
+      background: radial-gradient(circle at top left, #1d2730, var(--bg) 55%);
+      color: var(--text);
+      font-family: "Segoe UI", Tahoma, sans-serif;
     }
-    h1 {
+
+    h1, h2, h3 {
+      margin: 0;
+      font-weight: 700;
+    }
+
+    p {
+      margin: 0;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      margin-bottom: 18px;
+      flex-wrap: wrap;
+    }
+
+    .card {
+      background: color-mix(in srgb, var(--panel) 88%, black 12%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
+    }
+
+    .subtitle {
+      margin-top: 6px;
+      color: var(--muted);
       text-align: center;
-      margin-bottom: 1rem;
     }
+
+    .env-badge {
+      margin-top: 10px;
+      text-align: center;
+      color: var(--warn);
+      font-size: 0.95rem;
+    }
+
     form {
       display: flex;
       flex-direction: column;
-      gap: 15px;
+      gap: 12px;
+      margin-top: 14px;
     }
+
+    label {
+      font-size: 0.92rem;
+      color: var(--muted);
+    }
+
     input, select, button {
-      padding: 10px;
-      font-size: 1em;
-      border-radius: 8px;
       border: none;
-    }
-    input, select {
-      background-color: #1e1e1e;
-      color: white;
-    }
-    button {
-      background-color: #4CAF50;
-      color: white;
-      transition: background 0.3s ease;
-    }
-    button:hover {
-      background-color: #45a049;
-    }
-    .modal {
-      display: none;
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background-color: rgba(0, 0, 0, 0.5);
-      justify-content: center;
-      align-items: center;
-    }
-    .modal-content {
-      background-color: #2e2e2e;
-      padding: 20px;
       border-radius: 10px;
-      width: 80%;
-      max-width: 600px;
+      font-size: 1rem;
+      padding: 11px 12px;
     }
-    #resetDays-container input,
-    #days-container input {
-      margin-bottom: 10px;
-      padding: 8px;
-      width: 100%;
+
+    input, select {
+      background: #10161b;
+      color: var(--text);
+      border: 1px solid rgba(255, 255, 255, 0.1);
     }
+
+    button {
+      background: var(--accent);
+      color: white;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+
+    button:hover {
+      background: var(--accent-hover);
+    }
+
+    .btn-secondary {
+      background: #33414c;
+    }
+
+    .btn-secondary:hover {
+      background: #415464;
+    }
+
+    .btn-danger {
+      background: var(--danger);
+    }
+
+    .btn-danger:hover {
+      background: #d85d40;
+    }
+
+    .inline {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .checks {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      margin-top: 4px;
+    }
+
+    .checks label {
+      color: var(--text);
+      font-size: 0.92rem;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    #modoEvento {
+      margin-top: 8px;
+      font-size: 0.9rem;
+      color: var(--warn);
+      text-align: center;
+    }
+
     #enviandoMsg {
       display: none;
       text-align: center;
-      margin-top: 10px;
-      color: #ffa726;
-      font-weight: bold;
-      animation: fadeIn 0.4s ease-in-out;
+      margin-top: 12px;
+      color: var(--warn);
+      font-weight: 600;
     }
-    @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
+
+    .modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      justify-content: center;
+      align-items: center;
+      padding: 16px;
+      z-index: 20;
+    }
+
+    .modal-content {
+      width: min(680px, 100%);
+      max-height: 92vh;
+      overflow: auto;
+      background: #1d252b;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 14px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .days-container input {
+      margin-bottom: 8px;
+      width: 100%;
+    }
+
+    .drive-link button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px;
+    }
+
+    @media (max-width: 640px) {
+      .inline, .actions {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
 <body>
-<div style="display: flex; justify-content: center; gap: 10px; margin-bottom: 20px;">
-  <button type="button" onclick="showModal('resetModal')">🔁</button>
-  <button type="button" onclick="showModal('gananciaModal')">💰</button>
-  <button type="button" onclick="showModal('diasLibresModal')">📅</button>
-  <a href="https://docs.google.com/spreadsheets/d/1GlBG2lRCFEkdZc8q_igLwia8ekyRGtUT5qo8sWqLgH4/edit?usp=drive_link" target="_blank" style="text-decoration: none;">
-    <button type="button" style="background-color: #4CAF50; padding: 10px; border-radius: 8px; border: none;">
-      <img src="icons/google-drive.png" alt="Google Drive" style="width: 24px; height: 24px; vertical-align: middle;" />
-    </button>
-  </a> 
-</div>
-
-  <h1>Formulario de Registro de Jornadas y Días Libres</h1>
-  <p style="text-align:center; margin-top: -8px; color: #f9c74f;">Entorno DEV - prueba branch deploy v2 (2026-02-12)</p>
-
-<!-- FORMULARIO PRINCIPAL -->
-<div id="formPrincipal">
-  <form id="formExtras">
-    <label for="mes">Mes</label>
-    <select id="mes" name="mes" required>
-      <option value="Enero - 2026">Enero</option>
-      <option value="Febrero - 2026">Febrero</option>
-      <option value="Marzo - 2026">Marzo</option>
-      <option value="Abril - 2026">Abril</option>
-      <option value="Mayo - 2026">Mayo</option>
-      <option value="Junio - 2026">Junio</option>
-      <option value="Julio - 2026">Julio</option>
-      <option value="Agosto - 2026">Agosto</option>
-      <option value="Septiembre - 2026">Septiembre</option>
-      <option value="Octubre - 2026">Octubre</option>
-      <option value="Noviembre - 2026">Noviembre</option>
-      <option value="Diciembre - 2026">Diciembre</option>
-    </select>
-
-    <label for="dia">Día del evento (1-31)</label>
-    <input type="number" id="dia" name="dia" min="1" max="31" required />
-
-    <label for="evento">Evento</label>
-    <input type="text" id="evento" name="evento" required />
-
-    <label for="tarifa">Tipo de tarifa</label>
-    <select id="tarifa" name="tarifa" required>
-      <option value="Ninguna">Ninguna</option>
-      <option value="Tec.Madrid">Tec.Madrid</option>
-      <option value="Tec.Finde">Tec.Finde</option>
-      <option value="Tec.Fuera">Tec.Fuera</option>
-      <option value="Conductor - 400">Conductor - 400</option>
-      <option value="Conductor + 400">Conductor + 400</option>
-      <option value="Op.Med">Op.Med</option>
-      <option value="Op.Bolo">Op.Bolo</option>
-      <option value="Op. Gran Formato">Op. Gran Formato</option>
-      <option value="Op.Directo">Op.Directo</option>
-      <option value="Tec.Plato">Tec.Plato</option>
-      <option value="Plato">Plato</option>
-      <option value="JE.Bolo">JE.Bolo</option>
-      <option value="JE.Gran Formato">JE.Gran Formato</option>
-      <option value="JE.Directo">JE.Directo</option>
-      <option value="Dia OFF">Dia OFF</option>
-    </select>
-
-    <label for="extras">Horas extras</label>
-    <select id="extras" name="extras" required>
-      <option value="No">No he hecho horas extras</option>
-      <option value="12 - Normal - Bolo">12 - Normal - Bolo</option>
-      <option value="13 - Normal - Bolo">13 - Normal - Bolo</option>
-      <option value="14 - Normal - Bolo">14 - Normal - Bolo</option>
-      <option value="15 - Normal - Bolo">15 - Normal - Bolo</option>
-      <option value="16 - Normal - Bolo">16 - Normal - Bolo</option>
-      <option value="12 - Op/JE - Bolo">12 - Op/JE - Bolo</option>
-      <option value="13 - Op/JE - Bolo">13 - Op/JE - Bolo</option>
-      <option value="14 - Op/JE - Bolo">14 - Op/JE - Bolo</option>
-      <option value="15 - Op/JE - Bolo">15 - Op/JE - Bolo</option>
-      <option value="16 - Op/JE - Bolo">16 - Op/JE - Bolo</option>
-      <option value="12 - Op/JE - GF">12 - Op/JE - GF</option>
-      <option value="13 - Op/JE - GF">13 - Op/JE - GF</option>
-      <option value="14 - Op/JE - GF">14 - Op/JE - GF</option>
-      <option value="15 - Op/JE - GF">15 - Op/JE - GF</option>
-      <option value="12 - Op/JE - Directo">12 - Op/JE - Directo</option>
-      <option value="13 - Op/JE - Directo">13 - Op/JE - Directo</option>
-      <option value="14 - Op/JE - Directo">14 - Op/JE - Directo</option>
-      <option value="12 - Normal - Directo">12 - Normal - Directo</option>
-      <option value="13 - Normal - Directo">13 - Normal - Directo</option>
-      <option value="14 - Normal - Directo">14 - Normal - Directo</option>
-    </select>
-
-    <!-- Media Jornada (RENOMBRADO) -->
-    <label><input type="checkbox" id="mediaJornada" /> Media Jornada</label>
-    <!-- Jefe + Operador (igual) -->
-    <label><input type="checkbox" id="jefeOperador" /> Jefe + Operador</label>
-    <!-- Doble Jornada (NUEVO) -->
-    <label><input type="checkbox" id="dobleJornadaReal" /> Doble Jornada</label>
-
-    <!-- Hidden para mantener nombres de campos en el envío -->
-    <input type="hidden" name="mediaJornada" id="hiddenMedia" />
-    <input type="hidden" name="jefeOperador" id="hiddenJefe" />
-    <input type="hidden" name="Doble jornada" id="hiddenDobleReal" />
-
-    <button type="submit">Enviar</button>
-  </form>
-</div>
-
-<!-- MODAL RESET -->
-<div id="resetModal" class="modal">
-  <div class="modal-content">
-    <h3>Resetear Días</h3>
-    <label for="resetMes">Mes</label>
-    <select id="resetMes" name="mes">
-      <option value="Enero - 2026">Enero</option>
-      <option value="Febrero - 2026">Febrero</option>
-      <option value="Marzo - 2026">Marzo</option>
-      <option value="Abril - 2026">Abril</option>
-      <option value="Mayo - 2026">Mayo</option>
-      <option value="Junio - 2026">Junio</option>
-      <option value="Julio - 2026">Julio</option>
-      <option value="Agosto - 2026">Agosto</option>
-      <option value="Septiembre - 2026">Septiembre</option>
-      <option value="Octubre - 2026">Octubre</option>
-      <option value="Noviembre - 2026">Noviembre</option>
-      <option value="Diciembre - 2026">Diciembre</option>
-    </select>
-    <div id="resetDays-container"></div>
-    <button type="button" onclick="resetDays()">Resetear</button>
-    <button type="button" onclick="closeModal('resetModal')">Cerrar</button>
+  <div class="toolbar">
+    <button type="button" class="btn-secondary" onclick="showModal('resetModal')">Reset dias</button>
+    <button type="button" class="btn-secondary" onclick="showModal('gananciaModal')">Ganancias</button>
+    <button type="button" class="btn-secondary" onclick="showModal('diasLibresModal')">Dias libres</button>
+    <a
+      class="drive-link"
+      href="https://docs.google.com/spreadsheets/d/1GlBG2lRCFEkdZc8q_igLwia8ekyRGtUT5qo8sWqLgH4/edit?usp=drive_link"
+      target="_blank"
+      rel="noreferrer"
+      style="text-decoration: none;"
+    >
+      <button type="button" title="Abrir Sheet">
+        <img src="icons/google-drive.png" alt="Google Drive" style="width:24px;height:24px;" />
+      </button>
+    </a>
   </div>
-</div>
 
-<!-- MODAL DÍAS LIBRES -->
-<div id="diasLibresModal" class="modal">
-  <div class="modal-content">
-    <h3>Asignar Días Libres</h3>
-    <label for="mesDiasLibres">Mes</label>
-    <select id="mesDiasLibres" name="mes">
-      <option value="Enero - 2026">Enero</option>
-      <option value="Febrero - 2026">Febrero</option>
-      <option value="Marzo - 2026">Marzo</option>
-      <option value="Abril - 2026">Abril</option>
-      <option value="Mayo - 2026">Mayo</option>
-      <option value="Junio - 2026">Junio</option>
-      <option value="Julio - 2026">Julio</option>
-      <option value="Agosto - 2026">Agosto</option>
-      <option value="Septiembre - 2026">Septiembre</option>
-      <option value="Octubre - 2026">Octubre</option>
-      <option value="Noviembre - 2026">Noviembre</option>
-      <option value="Diciembre - 2026">Diciembre</option>
-    </select>
-    <div id="days-container"></div>
-    <button type="button" onclick="enviarDiasLibres()">Enviar Días Libres</button>
-    <button type="button" onclick="closeModal('diasLibresModal')">Cerrar</button>
+  <div class="card" id="formPrincipal">
+    <h1>Registro por Evento</h1>
+    <p class="subtitle">Crea por rango de fechas y luego recupera para actualizar.</p>
+    <p class="env-badge">Entorno DEV</p>
+
+    <div id="modoEvento">Modo: creando evento nuevo</div>
+
+    <form id="formEvento">
+      <input type="hidden" id="eventKey" name="eventKey" />
+
+      <label for="evento">Nombre del evento</label>
+      <input type="text" id="evento" name="evento" required />
+
+      <div class="inline">
+        <div>
+          <label for="fechaInicio">Fecha inicio</label>
+          <input type="date" id="fechaInicio" name="fechaInicio" required />
+        </div>
+        <div>
+          <label for="fechaFin">Fecha fin</label>
+          <input type="date" id="fechaFin" name="fechaFin" required />
+        </div>
+      </div>
+
+      <label for="tarifa">Tarifa</label>
+      <select id="tarifa" name="tarifa" required>
+        <option value="Ninguna">Ninguna</option>
+        <option value="Tec.Madrid">Tec.Madrid</option>
+        <option value="Tec.Finde">Tec.Finde</option>
+        <option value="Tec.Fuera">Tec.Fuera</option>
+        <option value="Conductor - 400">Conductor - 400</option>
+        <option value="Conductor + 400">Conductor + 400</option>
+        <option value="Op.Med">Op.Med</option>
+        <option value="Op.Bolo">Op.Bolo</option>
+        <option value="Op. Gran Formato">Op. Gran Formato</option>
+        <option value="Op.Directo">Op.Directo</option>
+        <option value="Tec.Plato">Tec.Plato</option>
+        <option value="Plato">Plato</option>
+        <option value="JE.Bolo">JE.Bolo</option>
+        <option value="JE.Gran Formato">JE.Gran Formato</option>
+        <option value="JE.Directo">JE.Directo</option>
+        <option value="Dia OFF">Dia OFF</option>
+      </select>
+
+      <label for="extras">Horas extras</label>
+      <select id="extras" name="extras" required>
+        <option value="No">No he hecho horas extras</option>
+        <option value="12 - Normal - Bolo">12 - Normal - Bolo</option>
+        <option value="13 - Normal - Bolo">13 - Normal - Bolo</option>
+        <option value="14 - Normal - Bolo">14 - Normal - Bolo</option>
+        <option value="15 - Normal - Bolo">15 - Normal - Bolo</option>
+        <option value="16 - Normal - Bolo">16 - Normal - Bolo</option>
+        <option value="12 - Op/JE - Bolo">12 - Op/JE - Bolo</option>
+        <option value="13 - Op/JE - Bolo">13 - Op/JE - Bolo</option>
+        <option value="14 - Op/JE - Bolo">14 - Op/JE - Bolo</option>
+        <option value="15 - Op/JE - Bolo">15 - Op/JE - Bolo</option>
+        <option value="16 - Op/JE - Bolo">16 - Op/JE - Bolo</option>
+        <option value="12 - Op/JE - GF">12 - Op/JE - GF</option>
+        <option value="13 - Op/JE - GF">13 - Op/JE - GF</option>
+        <option value="14 - Op/JE - GF">14 - Op/JE - GF</option>
+        <option value="15 - Op/JE - GF">15 - Op/JE - GF</option>
+        <option value="12 - Op/JE - Directo">12 - Op/JE - Directo</option>
+        <option value="13 - Op/JE - Directo">13 - Op/JE - Directo</option>
+        <option value="14 - Op/JE - Directo">14 - Op/JE - Directo</option>
+        <option value="12 - Normal - Directo">12 - Normal - Directo</option>
+        <option value="13 - Normal - Directo">13 - Normal - Directo</option>
+        <option value="14 - Normal - Directo">14 - Normal - Directo</option>
+      </select>
+
+      <div class="checks">
+        <label><input type="checkbox" id="mediaJornada" /> Media jornada</label>
+        <label><input type="checkbox" id="jefeOperador" /> Jefe + Operador</label>
+        <label><input type="checkbox" id="dobleJornadaReal" /> Doble jornada</label>
+      </div>
+
+      <div class="actions">
+        <button type="submit" id="submitEventoBtn">Guardar evento</button>
+        <button type="button" class="btn-secondary" onclick="showModal('eventosModal'); cargarListaEventos();">Recuperar evento</button>
+        <button type="button" class="btn-danger" onclick="resetFormularioEvento();">Nuevo evento</button>
+      </div>
+    </form>
   </div>
-</div>
 
-<!-- MODAL GANANCIA -->
-<div id="gananciaModal" class="modal">
-  <div class="modal-content">
-    <h3>Consultar Ganancia</h3>
-    <label for="mesGanancia">Mes</label>
-    <select id="mesGanancia" name="mes">
-      <option value="Enero - 2026">Enero</option>
-      <option value="Febrero - 2026">Febrero</option>
-      <option value="Marzo - 2026">Marzo</option>
-      <option value="Abril - 2026">Abril</option>
-      <option value="Mayo - 2026">Mayo</option>
-      <option value="Junio - 2026">Junio</option>
-      <option value="Julio - 2026">Julio</option>
-      <option value="Agosto - 2026">Agosto</option>
-      <option value="Septiembre - 2026">Septiembre</option>
-      <option value="Octubre - 2026">Octubre</option>
-      <option value="Noviembre - 2026">Noviembre</option>
-      <option value="Diciembre - 2026">Diciembre</option>
-    </select>
-    <button type="button" onclick="consultarGanancia()">Consultar</button>
-    <div id="gananciasResultado" style="margin-top: 15px; text-align: center;"></div>
-    <button type="button" onclick="closeModal('gananciaModal')">Cerrar</button>
+  <div id="eventosModal" class="modal">
+    <div class="modal-content">
+      <h3>Recuperar evento</h3>
+      <label for="buscarEventoTxt">Buscar por nombre</label>
+      <input type="text" id="buscarEventoTxt" placeholder="Escribe para filtrar" />
+      <button type="button" class="btn-secondary" onclick="cargarListaEventos()">Actualizar lista</button>
+
+      <label for="listaEventos">Eventos encontrados</label>
+      <select id="listaEventos" size="8"></select>
+
+      <div class="modal-actions">
+        <button type="button" onclick="cargarEventoSeleccionado()">Cargar evento</button>
+        <button type="button" class="btn-secondary" onclick="closeModal('eventosModal')">Cerrar</button>
+      </div>
+    </div>
   </div>
-</div>
 
-<div id="enviandoMsg">⏳ Enviando datos...</div>
+  <div id="resetModal" class="modal">
+    <div class="modal-content">
+      <h3>Resetear dias</h3>
+      <label for="resetMes">Mes</label>
+      <select id="resetMes" name="mes"></select>
+      <div id="resetDays-container" class="days-container"></div>
+      <div class="modal-actions">
+        <button type="button" onclick="resetDays()">Resetear</button>
+        <button type="button" class="btn-secondary" onclick="closeModal('resetModal')">Cerrar</button>
+      </div>
+    </div>
+  </div>
 
-<script>
-const scriptURL = 'https://script.google.com/macros/s/AKfycbwrgAgbS8C4TqhU5Uw-MFHAbb9moH8c9Mlnh4Rjv7XNiUNlRdYYQCap-PUTDXe9RcI/exec';
+  <div id="diasLibresModal" class="modal">
+    <div class="modal-content">
+      <h3>Asignar dias libres</h3>
+      <label for="mesDiasLibres">Mes</label>
+      <select id="mesDiasLibres" name="mes"></select>
+      <div id="days-container" class="days-container"></div>
+      <div class="modal-actions">
+        <button type="button" onclick="enviarDiasLibres()">Enviar</button>
+        <button type="button" class="btn-secondary" onclick="closeModal('diasLibresModal')">Cerrar</button>
+      </div>
+    </div>
+  </div>
 
-function mostrarMensajeEnviando(mostrar = true) {
-  const msg = document.getElementById('enviandoMsg');
-  msg.style.display = mostrar ? 'block' : 'none';
-}
+  <div id="gananciaModal" class="modal">
+    <div class="modal-content">
+      <h3>Consultar ganancia</h3>
+      <label for="mesGanancia">Mes</label>
+      <select id="mesGanancia" name="mes"></select>
+      <div class="modal-actions">
+        <button type="button" onclick="consultarGanancia()">Consultar</button>
+        <button type="button" class="btn-secondary" onclick="closeModal('gananciaModal')">Cerrar</button>
+      </div>
+      <div id="gananciasResultado" style="margin-top: 8px;"></div>
+    </div>
+  </div>
 
-function showModal(id) {
-  document.getElementById('formPrincipal').style.display = 'none';
-  document.getElementById(id).style.display = 'flex';
-  if (id === 'resetModal') generateResetFields();
-  if (id === 'diasLibresModal') generateDaysFields();
-}
+  <div id="enviandoMsg">Enviando datos...</div>
 
-function closeModal(id) {
-  document.getElementById(id).style.display = 'none';
-  document.getElementById('formPrincipal').style.display = 'block';
-}
+  <script>
+    const scriptURL = "https://script.google.com/macros/s/AKfycbwrgAgbS8C4TqhU5Uw-MFHAbb9moH8c9Mlnh4Rjv7XNiUNlRdYYQCap-PUTDXe9RcI/exec";
+    let currentEventKey = "";
 
-function generateResetFields() {
-  const container = document.getElementById('resetDays-container');
-  container.innerHTML = '';
-  for (let i = 1; i <= 10; i++) {
-    const input = document.createElement('input');
-    input.type = 'number';
-    input.placeholder = `Día ${i}`;
-    input.min = 1;
-    input.max = 31;
-    container.appendChild(input);
-  }
-}
+    const MONTH_OPTIONS = [
+      "Enero - 2026", "Febrero - 2026", "Marzo - 2026", "Abril - 2026",
+      "Mayo - 2026", "Junio - 2026", "Julio - 2026", "Agosto - 2026",
+      "Septiembre - 2026", "Octubre - 2026", "Noviembre - 2026", "Diciembre - 2026"
+    ];
 
-function resetDays() {
-  const dias = [...document.querySelectorAll('#resetDays-container input')].map(i => i.value).filter(Boolean);
-  const mes = document.getElementById('resetMes').value;
-  if (!dias.length) return alert('Introduce al menos un día');
+    function mostrarMensajeEnviando(mostrar = true) {
+      document.getElementById("enviandoMsg").style.display = mostrar ? "block" : "none";
+    }
 
-  const formData = new FormData();
-  formData.append('modo', 'reset');
-  formData.append('mes', mes);
-  formData.append('dias', dias.join(','));
+    function toLocalIso(date) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, "0");
+      const d = String(date.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
 
-  mostrarMensajeEnviando(true);
-  fetch(scriptURL, { method: 'POST', body: formData })
-    .then(r => r.json())
-    .then(d => {
-      mostrarMensajeEnviando(false);
-      alert('Días reseteados');
-    })
-    .catch(() => {
-      mostrarMensajeEnviando(false);
-      alert('Error al resetear');
-    });
-}
+    function initMonthSelects() {
+      ["resetMes", "mesDiasLibres", "mesGanancia"].forEach((id) => {
+        const select = document.getElementById(id);
+        select.innerHTML = "";
+        MONTH_OPTIONS.forEach((v) => {
+          const opt = document.createElement("option");
+          opt.value = v;
+          opt.textContent = v.replace(" - 2026", "");
+          select.appendChild(opt);
+        });
+      });
 
-function generateDaysFields() {
-  const container = document.getElementById('days-container');
-  container.innerHTML = '';
-  for (let i = 1; i <= 10; i++) {
-    const input = document.createElement('input');
-    input.type = 'number';
-    input.placeholder = `Día ${i}`;
-    input.min = 1;
-    input.max = 31;
-    container.appendChild(input);
-  }
-}
+      const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+      const currentMonthText = `${monthNames[new Date().getMonth()]} - 2026`;
+      ["resetMes", "mesDiasLibres", "mesGanancia"].forEach((id) => {
+        const select = document.getElementById(id);
+        if ([...select.options].some((o) => o.value === currentMonthText)) {
+          select.value = currentMonthText;
+        }
+      });
+    }
 
-function enviarDiasLibres() {
-  const dias = [...document.querySelectorAll('#days-container input')].map(i => i.value).filter(Boolean);
-  const mes = document.getElementById('mesDiasLibres').value;
-  if (!dias.length) return alert('Introduce al menos un día libre');
+    function showModal(id) {
+      document.getElementById("formPrincipal").style.display = "none";
+      document.getElementById(id).style.display = "flex";
+      if (id === "resetModal") generateNumberFields("resetDays-container");
+      if (id === "diasLibresModal") generateNumberFields("days-container");
+    }
 
-  const formData = new FormData();
-  formData.append('modo', 'diasLibres');
-  formData.append('mes', mes);
-  formData.append('dias', dias.join(','));
+    function closeModal(id) {
+      document.getElementById(id).style.display = "none";
+      document.getElementById("formPrincipal").style.display = "block";
+    }
 
-  mostrarMensajeEnviando(true);
-  fetch(scriptURL, { method: 'POST', body: formData })
-    .then(r => r.json())
-    .then(d => {
-      mostrarMensajeEnviando(false);
-      alert('Días libres asignados');
-    })
-    .catch(() => {
-      mostrarMensajeEnviando(false);
-      alert('Error al asignar días libres');
-    });
-}
-
-function consultarGanancia() {
-  const mes = document.getElementById('mesGanancia').value;
-  const resultado = document.getElementById('gananciasResultado');
-  resultado.textContent = '⌛ Obteniendo datos...';
-  const formData = new FormData();
-  formData.append('modo', 'consulta');
-  formData.append('mes', mes);
-
-  fetch(scriptURL, {
-    method: 'POST',
-    body: formData,
-  })
-    .then(r => r.json())
-    .then(data => {
-      if (data.error) resultado.textContent = '❌ ' + data.error;
-      else resultado.innerHTML = `📅 <b>${mes}</b><br>💰 Total: <b>${data.total}€</b><br>✅ Real: <b>${data.real}€</b>`;
-    })
-    .catch(() => resultado.textContent = '❌ Error al obtener datos');
-}
-
-document.getElementById('formExtras').addEventListener('submit', function(e) {
-  e.preventDefault();
-  const form = this;
-  const formData = new FormData(form);
-
-  // Enviar booleans
-  formData.set('mediaJornada', document.getElementById('mediaJornada').checked);
-  formData.set('jefeOperador', document.getElementById('jefeOperador').checked);
-  formData.set('Doble jornada', document.getElementById('dobleJornadaReal').checked);
-
-  mostrarMensajeEnviando(true);
-  fetch(scriptURL, {
-    method: 'POST',
-    body: formData
-  })
-    .then(res => res.json())
-    .then(data => {
-      mostrarMensajeEnviando(false);
-      if (data.result === 'success') {
-        alert('✅ Datos enviados correctamente');
-        const mesSeleccionado = form.mes.value;
-        form.reset();
-        form.mes.value = mesSeleccionado;
-      } else if (data.error) {
-        alert('❌ ' + data.error);
+    function generateNumberFields(containerId) {
+      const container = document.getElementById(containerId);
+      container.innerHTML = "";
+      for (let i = 1; i <= 10; i++) {
+        const input = document.createElement("input");
+        input.type = "number";
+        input.min = "1";
+        input.max = "31";
+        input.placeholder = `Dia ${i}`;
+        container.appendChild(input);
       }
-    })
-    .catch(() => {
-      mostrarMensajeEnviando(false);
-      alert('❌ Error al enviar los datos');
-    });
-});
+    }
 
-const mesActual = new Date().getMonth();
-const nombresMeses = [
-  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
-];
-const mesTexto = `${nombresMeses[mesActual]} - 2026`;
-const selectsMes = [
-  document.getElementById('mes'),
-  document.getElementById('mesGanancia'),
-  document.getElementById('mesDiasLibres'),
-  document.getElementById('resetMes')
-];
-selectsMes.forEach(select => {
-  if (select) {
-    [...select.options].forEach(opt => {
-      if (opt.value === mesTexto) opt.selected = true;
+    async function postForm(formData) {
+      const res = await fetch(scriptURL, { method: "POST", body: formData });
+      return res.json();
+    }
+
+    function setModoEvento() {
+      const modo = currentEventKey ? `Modo: editando evento (${currentEventKey})` : "Modo: creando evento nuevo";
+      document.getElementById("modoEvento").textContent = modo;
+      document.getElementById("submitEventoBtn").textContent = currentEventKey ? "Actualizar evento" : "Guardar evento";
+      document.getElementById("eventKey").value = currentEventKey || "";
+    }
+
+    function resetFormularioEvento() {
+      currentEventKey = "";
+      const form = document.getElementById("formEvento");
+      form.reset();
+      const today = toLocalIso(new Date());
+      document.getElementById("fechaInicio").value = today;
+      document.getElementById("fechaFin").value = today;
+      document.getElementById("extras").value = "No";
+      document.getElementById("tarifa").value = "Ninguna";
+      setModoEvento();
+    }
+
+    async function cargarListaEventos() {
+      const lista = document.getElementById("listaEventos");
+      lista.innerHTML = "";
+      const query = document.getElementById("buscarEventoTxt").value.trim();
+
+      const fd = new FormData();
+      fd.append("modo", "listarEventos");
+      if (query) fd.append("q", query);
+
+      mostrarMensajeEnviando(true);
+      try {
+        const data = await postForm(fd);
+        mostrarMensajeEnviando(false);
+        if (data.error) {
+          alert(data.error);
+          return;
+        }
+
+        const events = data.events || [];
+        if (!events.length) {
+          const opt = document.createElement("option");
+          opt.value = "";
+          opt.textContent = "No hay eventos guardados";
+          lista.appendChild(opt);
+          return;
+        }
+
+        events.forEach((ev) => {
+          const opt = document.createElement("option");
+          opt.value = ev.eventKey;
+          opt.textContent = `${ev.evento} | ${ev.fechaInicio} -> ${ev.fechaFin} (${ev.dias} dias)`;
+          lista.appendChild(opt);
+        });
+      } catch (err) {
+        mostrarMensajeEnviando(false);
+        alert("Error al cargar eventos");
+      }
+    }
+
+    async function cargarEventoSeleccionado() {
+      const key = document.getElementById("listaEventos").value;
+      if (!key) return alert("Selecciona un evento");
+
+      const fd = new FormData();
+      fd.append("modo", "obtenerEvento");
+      fd.append("eventKey", key);
+
+      mostrarMensajeEnviando(true);
+      try {
+        const data = await postForm(fd);
+        mostrarMensajeEnviando(false);
+        if (data.error) return alert(data.error);
+
+        const ev = data.event;
+        currentEventKey = ev.eventKey;
+        document.getElementById("evento").value = ev.evento || "";
+        document.getElementById("fechaInicio").value = ev.fechaInicio || "";
+        document.getElementById("fechaFin").value = ev.fechaFin || "";
+        document.getElementById("tarifa").value = ev.tarifa || "Ninguna";
+        document.getElementById("extras").value = ev.extras || "No";
+        document.getElementById("mediaJornada").checked = !!ev.mediaJornada;
+        document.getElementById("jefeOperador").checked = !!ev.jefeOperador;
+        document.getElementById("dobleJornadaReal").checked = !!ev.dobleJornada;
+        setModoEvento();
+        closeModal("eventosModal");
+      } catch (err) {
+        mostrarMensajeEnviando(false);
+        alert("Error al cargar el evento");
+      }
+    }
+
+    async function resetDays() {
+      const dias = [...document.querySelectorAll("#resetDays-container input")]
+        .map((i) => i.value.trim())
+        .filter(Boolean);
+      if (!dias.length) return alert("Introduce al menos un dia");
+
+      const fd = new FormData();
+      fd.append("modo", "reset");
+      fd.append("mes", document.getElementById("resetMes").value);
+      fd.append("dias", dias.join(","));
+
+      mostrarMensajeEnviando(true);
+      try {
+        const data = await postForm(fd);
+        mostrarMensajeEnviando(false);
+        if (data.error) return alert(data.error);
+        alert("Dias reseteados");
+      } catch (err) {
+        mostrarMensajeEnviando(false);
+        alert("Error al resetear");
+      }
+    }
+
+    async function enviarDiasLibres() {
+      const dias = [...document.querySelectorAll("#days-container input")]
+        .map((i) => i.value.trim())
+        .filter(Boolean);
+      if (!dias.length) return alert("Introduce al menos un dia");
+
+      const fd = new FormData();
+      fd.append("modo", "diasLibres");
+      fd.append("mes", document.getElementById("mesDiasLibres").value);
+      fd.append("dias", dias.join(","));
+
+      mostrarMensajeEnviando(true);
+      try {
+        const data = await postForm(fd);
+        mostrarMensajeEnviando(false);
+        if (data.error) return alert(data.error);
+        alert("Dias libres asignados");
+      } catch (err) {
+        mostrarMensajeEnviando(false);
+        alert("Error al asignar dias libres");
+      }
+    }
+
+    async function consultarGanancia() {
+      const fd = new FormData();
+      const mes = document.getElementById("mesGanancia").value;
+      fd.append("modo", "consulta");
+      fd.append("mes", mes);
+
+      const output = document.getElementById("gananciasResultado");
+      output.textContent = "Cargando...";
+
+      try {
+        const data = await postForm(fd);
+        if (data.error) {
+          output.textContent = `Error: ${data.error}`;
+          return;
+        }
+        output.innerHTML = `<b>${mes}</b><br>Total: <b>${data.total} EUR</b><br>Real: <b>${data.real} EUR</b>`;
+      } catch (err) {
+        output.textContent = "Error al consultar";
+      }
+    }
+
+    document.getElementById("formEvento").addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const evento = document.getElementById("evento").value.trim();
+      const fechaInicio = document.getElementById("fechaInicio").value;
+      const fechaFin = document.getElementById("fechaFin").value;
+      if (!evento) return alert("Falta nombre del evento");
+      if (!fechaInicio || !fechaFin) return alert("Completa fechas");
+      if (fechaInicio > fechaFin) return alert("La fecha final debe ser mayor o igual");
+
+      const fd = new FormData();
+      fd.append("modo", currentEventKey ? "actualizarEvento" : "guardarEventoRango");
+      if (currentEventKey) fd.append("eventKey", currentEventKey);
+      fd.append("evento", evento);
+      fd.append("fechaInicio", fechaInicio);
+      fd.append("fechaFin", fechaFin);
+      fd.append("tarifa", document.getElementById("tarifa").value);
+      fd.append("extras", document.getElementById("extras").value);
+      fd.append("mediaJornada", document.getElementById("mediaJornada").checked);
+      fd.append("jefeOperador", document.getElementById("jefeOperador").checked);
+      fd.append("Doble jornada", document.getElementById("dobleJornadaReal").checked);
+
+      mostrarMensajeEnviando(true);
+      try {
+        const data = await postForm(fd);
+        mostrarMensajeEnviando(false);
+        if (data.error) return alert(data.error);
+
+        if (data.eventKey) currentEventKey = data.eventKey;
+        setModoEvento();
+
+        if (currentEventKey) {
+          alert(`Evento guardado correctamente (${data.dias || data.diasActualizados || 0} dias)`);
+        } else {
+          alert("Datos guardados");
+        }
+      } catch (err) {
+        mostrarMensajeEnviando(false);
+        alert("Error al guardar evento");
+      }
     });
-  }
-});
-</script>
+
+    document.getElementById("buscarEventoTxt").addEventListener("input", () => {
+      cargarListaEventos();
+    });
+
+    initMonthSelects();
+    resetFormularioEvento();
+  </script>
 </body>
 </html>
