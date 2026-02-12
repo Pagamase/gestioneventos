@@ -1,4 +1,4 @@
-var APP_VERSION = "event-workflow-2026-02-12-v5";
+var APP_VERSION = "event-workflow-2026-02-12-v6";
 
 var MONTH_NAMES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -519,7 +519,6 @@ function collectAllEventRows_(ss) {
       if (date.getMonth() !== info.month || date.getFullYear() !== info.year) continue;
 
       var noteData = parseNoteData_(notes[i][0]);
-      if (!noteData.eventKey) continue;
 
       rows.push({
         sheet: info.sheet,
@@ -538,6 +537,12 @@ function collectAllEventRows_(ss) {
   });
 
   rows.sort(function (a, b) { return a.date.getTime() - b.date.getTime(); });
+  assignResolvedEventKeys_(rows);
+
+  rows = rows.filter(function (r) {
+    return Boolean(r.noteData.eventKey);
+  });
+
   return rows;
 }
 
@@ -927,6 +932,77 @@ function sanitizeExceptionsMap_(exMap) {
     out[iso] = tarifa;
   });
   return out;
+}
+
+function assignResolvedEventKeys_(rows) {
+  var prevLegacyRun = null;
+
+  rows.forEach(function (r) {
+    var explicitKey = String((r.noteData && r.noteData.eventKey) || "").trim();
+    if (explicitKey) {
+      r.noteData.eventKey = explicitKey;
+      prevLegacyRun = null;
+      return;
+    }
+
+    var idsSignature = buildIdsSignature_(r.noteData && r.noteData.ids);
+    if (idsSignature) {
+      r.noteData.eventKey = "legacyids:" + idsSignature;
+      prevLegacyRun = null;
+      return;
+    }
+
+    var title = String(r.evento || "").trim();
+    if (!title || normalizeText_(title) === "DESCANSO") {
+      r.noteData.eventKey = "";
+      prevLegacyRun = null;
+      return;
+    }
+
+    if (
+      prevLegacyRun &&
+      prevLegacyRun.title === title &&
+      isConsecutiveDate_(prevLegacyRun.date, r.date)
+    ) {
+      r.noteData.eventKey = prevLegacyRun.key;
+    } else {
+      r.noteData.eventKey = "legacyrun:" + toIsoDate_(r.date) + ":" + slugifyKey_(title);
+    }
+
+    prevLegacyRun = {
+      key: r.noteData.eventKey,
+      title: title,
+      date: r.date
+    };
+  });
+}
+
+function buildIdsSignature_(idsMap) {
+  var ids = sanitizeIdMap_(idsMap || {});
+  var keys = Object.keys(ids).sort();
+  if (keys.length === 0) return "";
+
+  var parts = keys.map(function (k) {
+    var key = String(k).replace(/[^a-zA-Z0-9._@-]/g, "");
+    var val = String(ids[k]).replace(/[^a-zA-Z0-9._@-]/g, "");
+    return key + "=" + val;
+  });
+  return parts.join("|");
+}
+
+function isConsecutiveDate_(a, b) {
+  if (!a || !b) return false;
+  var da = new Date(a.getFullYear(), a.getMonth(), a.getDate());
+  var db = new Date(b.getFullYear(), b.getMonth(), b.getDate());
+  var diff = (db.getTime() - da.getTime()) / 86400000;
+  return diff === 1;
+}
+
+function slugifyKey_(text) {
+  return normalizeText_(text)
+    .replace(/[^A-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase();
 }
 
 function parseExceptionsParam_(raw) {
