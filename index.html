@@ -502,10 +502,7 @@
       }
     }
 
-    async function cargarEventoSeleccionado() {
-      const key = document.getElementById("listaEventos").value;
-      if (!key) return alert("Selecciona un evento");
-
+    async function cargarEventoPorKey(key, cerrarModal = true) {
       const fd = new FormData();
       fd.append("modo", "obtenerEvento");
       fd.append("eventKey", key);
@@ -514,7 +511,10 @@
       try {
         const data = await postForm(fd);
         mostrarMensajeEnviando(false);
-        if (data.error) return alert(data.error);
+        if (data.error) {
+          alert(data.error);
+          return false;
+        }
 
         const ev = data.event;
         currentEventKey = ev.eventKey;
@@ -527,10 +527,38 @@
         document.getElementById("jefeOperador").checked = !!ev.jefeOperador;
         document.getElementById("dobleJornadaReal").checked = !!ev.dobleJornada;
         setModoEvento();
-        closeModal("eventosModal");
+        if (cerrarModal) closeModal("eventosModal");
+        return true;
       } catch (err) {
         mostrarMensajeEnviando(false);
         alert("Error al cargar el evento");
+        return false;
+      }
+    }
+
+    async function cargarEventoSeleccionado() {
+      const key = document.getElementById("listaEventos").value;
+      if (!key) return alert("Selecciona un evento");
+      await cargarEventoPorKey(key, true);
+    }
+
+    async function manejarConflictoEvento(data) {
+      if (!data || !data.conflictEventKey) {
+        alert(data && data.error ? data.error : "Error al guardar");
+        return;
+      }
+
+      const aceptar = confirm(
+        "Ese rango ya pertenece a otro evento. ¿Quieres cargarlo para editarlo?"
+      );
+      if (!aceptar) {
+        alert(data.error);
+        return;
+      }
+
+      const ok = await cargarEventoPorKey(data.conflictEventKey, false);
+      if (ok) {
+        alert("Evento conflictivo cargado. Revisa los datos y pulsa Actualizar evento.");
       }
     }
 
@@ -627,7 +655,7 @@
       try {
         const data = await postForm(fd);
         mostrarMensajeEnviando(false);
-        if (data.error) return alert(data.error);
+        if (data.error) return manejarConflictoEvento(data);
 
         if (data.eventKey) currentEventKey = data.eventKey;
         setModoEvento();

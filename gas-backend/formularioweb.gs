@@ -38,7 +38,10 @@ function doPost(e) {
     return handleGuardarLegacyDia_(ss, calendars, params);
   } catch (err) {
     var msg = toErrorMessage_(err);
-    return json_({ error: msg, detail: String(err), version: APP_VERSION });
+    var conflictEventKey = extractConflictEventKey_(msg);
+    var payload = { error: msg, detail: String(err), version: APP_VERSION };
+    if (conflictEventKey) payload.conflictEventKey = conflictEventKey;
+    return json_(payload);
   }
 }
 
@@ -935,6 +938,11 @@ function toErrorMessage_(err) {
   if (typeof err === "string") return err;
   if (err.message) return String(err.message);
   return String(err);
+}
+
+function extractConflictEventKey_(message) {
+  var m = String(message || "").match(/evento\s+([a-f0-9-]{8,})/i);
+  return m ? m[1] : "";
 }
 
 function json_(obj) {
