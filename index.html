@@ -219,7 +219,6 @@
 </head>
 <body>
   <div class="toolbar">
-    <button type="button" class="btn-secondary" onclick="showModal('resetModal')">Reset dias</button>
     <button type="button" class="btn-secondary" onclick="showModal('gananciaModal')">Ganancias</button>
     <button type="button" class="btn-secondary" onclick="showModal('diasLibresModal')">Dias libres</button>
     <a
@@ -336,19 +335,6 @@
     </div>
   </div>
 
-  <div id="resetModal" class="modal">
-    <div class="modal-content">
-      <h3>Resetear dias</h3>
-      <label for="resetMes">Mes</label>
-      <select id="resetMes" name="mes"></select>
-      <div id="resetDays-container" class="days-container"></div>
-      <div class="modal-actions">
-        <button type="button" onclick="resetDays()">Resetear</button>
-        <button type="button" class="btn-secondary" onclick="closeModal('resetModal')">Cerrar</button>
-      </div>
-    </div>
-  </div>
-
   <div id="diasLibresModal" class="modal">
     <div class="modal-content">
       <h3>Asignar dias libres</h3>
@@ -400,7 +386,7 @@
     }
 
     function initMonthSelects() {
-      ["resetMes", "mesDiasLibres", "mesGanancia"].forEach((id) => {
+      ["mesDiasLibres", "mesGanancia"].forEach((id) => {
         const select = document.getElementById(id);
         select.innerHTML = "";
         MONTH_OPTIONS.forEach((v) => {
@@ -413,7 +399,7 @@
 
       const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
       const currentMonthText = `${monthNames[new Date().getMonth()]} - 2026`;
-      ["resetMes", "mesDiasLibres", "mesGanancia"].forEach((id) => {
+      ["mesDiasLibres", "mesGanancia"].forEach((id) => {
         const select = document.getElementById(id);
         if ([...select.options].some((o) => o.value === currentMonthText)) {
           select.value = currentMonthText;
@@ -424,7 +410,6 @@
     function showModal(id) {
       document.getElementById("formPrincipal").style.display = "none";
       document.getElementById(id).style.display = "flex";
-      if (id === "resetModal") generateNumberFields("resetDays-container");
       if (id === "diasLibresModal") generateNumberFields("days-container");
     }
 
@@ -602,29 +587,6 @@
       } catch (err) {
         mostrarMensajeEnviando(false);
         alert("Error al eliminar el evento");
-      }
-    }
-
-    async function resetDays() {
-      const dias = [...document.querySelectorAll("#resetDays-container input")]
-        .map((i) => i.value.trim())
-        .filter(Boolean);
-      if (!dias.length) return alert("Introduce al menos un dia");
-
-      const fd = new FormData();
-      fd.append("modo", "reset");
-      fd.append("mes", document.getElementById("resetMes").value);
-      fd.append("dias", dias.join(","));
-
-      mostrarMensajeEnviando(true);
-      try {
-        const data = await postForm(fd);
-        mostrarMensajeEnviando(false);
-        if (data.error) return alert(data.error);
-        alert("Dias reseteados");
-      } catch (err) {
-        mostrarMensajeEnviando(false);
-        alert("Error al resetear");
       }
     }
 
