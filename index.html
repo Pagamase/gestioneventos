@@ -153,6 +153,18 @@
       margin-top: 4px;
     }
 
+    .hint {
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .exceptions-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: 8px;
+      align-items: center;
+    }
+
     #modoEvento {
       margin-top: 8px;
       font-size: 0.9rem;
@@ -212,6 +224,10 @@
 
     @media (max-width: 640px) {
       .inline, .actions {
+        grid-template-columns: 1fr;
+      }
+
+      .exceptions-row {
         grid-template-columns: 1fr;
       }
     }
@@ -278,6 +294,11 @@
         <option value="Dia OFF">Dia OFF</option>
       </select>
 
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" onclick="abrirExcepciones()">Excepciones</button>
+        <span id="exceptionsSummary" class="hint">Sin excepciones</span>
+      </div>
+
       <label for="extras">Horas extras</label>
       <select id="extras" name="extras" required>
         <option value="No">No he hecho horas extras</option>
@@ -316,6 +337,19 @@
         <button type="submit" id="submitEventoBtn">Guardar evento</button>
       </div>
     </form>
+  </div>
+
+  <div id="excepcionesModal" class="modal">
+    <div class="modal-content">
+      <h3>Excepciones de tarifa</h3>
+      <p class="hint">Define fechas concretas con tarifa distinta dentro del rango.</p>
+      <div id="excepcionesRows"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" onclick="agregarExcepcionRow()">Agregar fila</button>
+        <button type="button" onclick="guardarExcepcionesModal()">Guardar excepciones</button>
+        <button type="button" class="btn-secondary" onclick="closeModal('excepcionesModal')">Cerrar</button>
+      </div>
+    </div>
   </div>
 
   <div id="eventosModal" class="modal">
@@ -367,6 +401,7 @@
     const scriptURL = "https://script.google.com/macros/s/AKfycbwrgAgbS8C4TqhU5Uw-MFHAbb9moH8c9Mlnh4Rjv7XNiUNlRdYYQCap-PUTDXe9RcI/exec";
     let currentEventKey = "";
     let listaEventosRequestId = 0;
+    let currentExceptions = {};
 
     const MONTH_OPTIONS = [
       "Enero - 2026", "Febrero - 2026", "Marzo - 2026", "Abril - 2026",
@@ -411,6 +446,7 @@
       document.getElementById("formPrincipal").style.display = "none";
       document.getElementById(id).style.display = "flex";
       if (id === "diasLibresModal") generateNumberFields("days-container");
+      if (id === "excepcionesModal") renderExcepcionesRows();
     }
 
     function closeModal(id) {
@@ -442,10 +478,12 @@
       document.getElementById("submitEventoBtn").textContent = currentEventKey ? "Actualizar evento" : "Guardar evento";
       document.getElementById("deleteEventoBtn").disabled = !currentEventKey;
       document.getElementById("eventKey").value = currentEventKey || "";
+      updateExceptionsSummary();
     }
 
     function resetFormularioEvento() {
       currentEventKey = "";
+      currentExceptions = {};
       const form = document.getElementById("formEvento");
       form.reset();
       const today = toLocalIso(new Date());
@@ -454,6 +492,86 @@
       document.getElementById("extras").value = "No";
       document.getElementById("tarifa").value = "Ninguna";
       setModoEvento();
+    }
+
+    function updateExceptionsSummary() {
+      const total = Object.keys(currentExceptions || {}).length;
+      document.getElementById("exceptionsSummary").textContent =
+        total > 0 ? `${total} excepcion(es)` : "Sin excepciones";
+    }
+
+    function abrirExcepciones() {
+      showModal("excepcionesModal");
+    }
+
+    function createTarifaSelect(selectedValue) {
+      const source = document.getElementById("tarifa");
+      const select = document.createElement("select");
+      select.className = "exception-tarifa";
+      [...source.options].forEach((opt) => {
+        const n = document.createElement("option");
+        n.value = opt.value;
+        n.textContent = opt.textContent;
+        if (opt.value === selectedValue) n.selected = true;
+        select.appendChild(n);
+      });
+      if (![...select.options].some((o) => o.value === selectedValue)) {
+        select.value = "Ninguna";
+      }
+      return select;
+    }
+
+    function appendExcepcionRow(fecha = "", tarifa = "Ninguna") {
+      const wrapper = document.createElement("div");
+      wrapper.className = "exceptions-row";
+
+      const dateInput = document.createElement("input");
+      dateInput.type = "date";
+      dateInput.className = "exception-date";
+      dateInput.value = fecha || "";
+
+      const tarifaSelect = createTarifaSelect(tarifa || "Ninguna");
+
+      const removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className = "btn-danger";
+      removeBtn.textContent = "Quitar";
+      removeBtn.onclick = () => wrapper.remove();
+
+      wrapper.appendChild(dateInput);
+      wrapper.appendChild(tarifaSelect);
+      wrapper.appendChild(removeBtn);
+
+      document.getElementById("excepcionesRows").appendChild(wrapper);
+    }
+
+    function renderExcepcionesRows() {
+      const container = document.getElementById("excepcionesRows");
+      container.innerHTML = "";
+      const entries = Object.entries(currentExceptions || {}).sort((a, b) => a[0].localeCompare(b[0]));
+      if (!entries.length) {
+        appendExcepcionRow("", document.getElementById("tarifa").value || "Ninguna");
+        return;
+      }
+      entries.forEach(([fecha, tarifa]) => appendExcepcionRow(fecha, tarifa));
+    }
+
+    function agregarExcepcionRow() {
+      appendExcepcionRow("", document.getElementById("tarifa").value || "Ninguna");
+    }
+
+    function guardarExcepcionesModal() {
+      const rows = [...document.querySelectorAll("#excepcionesRows .exceptions-row")];
+      const ex = {};
+      rows.forEach((row) => {
+        const fecha = row.querySelector(".exception-date").value;
+        const tarifa = row.querySelector(".exception-tarifa").value;
+        if (!fecha || !tarifa) return;
+        ex[fecha] = tarifa;
+      });
+      currentExceptions = ex;
+      updateExceptionsSummary();
+      closeModal("excepcionesModal");
     }
 
     async function cargarListaEventos() {
@@ -527,6 +645,7 @@
         document.getElementById("mediaJornada").checked = !!ev.mediaJornada;
         document.getElementById("jefeOperador").checked = !!ev.jefeOperador;
         document.getElementById("dobleJornadaReal").checked = !!ev.dobleJornada;
+        currentExceptions = ev.excepciones || {};
         setModoEvento();
         if (cerrarModal) closeModal("eventosModal");
         return true;
@@ -651,6 +770,7 @@
       fd.append("fechaInicio", fechaInicio);
       fd.append("fechaFin", fechaFin);
       fd.append("tarifa", document.getElementById("tarifa").value);
+      fd.append("excepciones", JSON.stringify(currentExceptions || {}));
       fd.append("extras", document.getElementById("extras").value);
       fd.append("mediaJornada", document.getElementById("mediaJornada").checked);
       fd.append("jefeOperador", document.getElementById("jefeOperador").checked);

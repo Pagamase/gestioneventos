@@ -1,4 +1,4 @@
-var APP_VERSION = "event-workflow-2026-02-12-v4";
+var APP_VERSION = "event-workflow-2026-02-12-v5";
 
 var MONTH_NAMES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -218,6 +218,11 @@ function handleGuardarEventoRango_(ss, calendars, params) {
     fechaInicio: toIsoDate_(inicio),
     fechaFin: toIsoDate_(fin),
     tarifa: hasText_(params.tarifa) ? String(params.tarifa) : "Ninguna",
+    excepciones: filterExceptionsToRange_(
+      parseExceptionsParam_(params.excepciones),
+      inicio,
+      fin
+    ),
     extras: hasText_(params.extras) ? String(params.extras) : "No",
     mediaJornada: toBool_(params.mediaJornada),
     jefeOperador: toBool_(params.jefeOperador),
@@ -298,6 +303,7 @@ function handleObtenerEvento_(ss, params) {
       fechaInicio: first.iso,
       fechaFin: last.iso,
       tarifa: first.tarifa || "Ninguna",
+      excepciones: first.noteData.exceptions || {},
       extras: first.extras || "No",
       mediaJornada: toBool_(first.mediaJornada),
       jefeOperador: toBool_(first.jefeOperador),
@@ -338,6 +344,11 @@ function handleActualizarEvento_(ss, calendars, params) {
     fechaInicio: toIsoDate_(inicio),
     fechaFin: toIsoDate_(fin),
     tarifa: hasText_(params.tarifa) ? String(params.tarifa) : String(first.tarifa || "Ninguna"),
+    excepciones: filterExceptionsToRange_(
+      hasText_(params.excepciones) ? parseExceptionsParam_(params.excepciones) : (first.noteData.exceptions || {}),
+      inicio,
+      fin
+    ),
     extras: hasText_(params.extras) ? String(params.extras) : String(first.extras || "No"),
     mediaJornada: hasParam_(params, "mediaJornada") ? toBool_(params.mediaJornada) : toBool_(first.mediaJornada),
     jefeOperador: hasParam_(params, "jefeOperador") ? toBool_(params.jefeOperador) : toBool_(first.jefeOperador),
@@ -457,14 +468,17 @@ function saveRangeContexts_(calendars, contexts, payload, existingNoteData) {
   );
 
   contexts.forEach(function (ctx) {
-    writeRow_(ctx.sheet, ctx.row, payload);
+    var rowPayload = copyPayload_(payload);
+    rowPayload.tarifa = resolveTarifaForDate_(payload, ctx.iso);
+    writeRow_(ctx.sheet, ctx.row, rowPayload);
 
     var noteData = buildNoteData_(
       idsMap,
       payload.eventKey,
       payload.evento,
       payload.fechaInicio,
-      payload.fechaFin
+      payload.fechaFin,
+      payload.excepciones
     );
     ctx.sheet.getRange(ctx.row, 4).setNote(JSON.stringify(noteData));
   });
@@ -843,6 +857,7 @@ function parseNoteData_(rawNote) {
     eventName: "",
     startDate: "",
     endDate: "",
+    exceptions: {},
     legacyCal1: "",
     legacyCal2: ""
   };
@@ -861,6 +876,9 @@ function parseNoteData_(rawNote) {
     if (parsed.eventName) out.eventName = String(parsed.eventName);
     if (parsed.startDate) out.startDate = String(parsed.startDate);
     if (parsed.endDate) out.endDate = String(parsed.endDate);
+    if (parsed.exceptions && typeof parsed.exceptions === "object") {
+      out.exceptions = sanitizeExceptionsMap_(parsed.exceptions);
+    }
 
     return out;
   } catch (err) {
@@ -868,13 +886,14 @@ function parseNoteData_(rawNote) {
   }
 }
 
-function buildNoteData_(idsMap, eventKey, eventName, startDate, endDate) {
+function buildNoteData_(idsMap, eventKey, eventName, startDate, endDate, exceptions) {
   return {
     ids: sanitizeIdMap_(idsMap || {}),
     eventKey: String(eventKey || ""),
     eventName: String(eventName || ""),
     startDate: String(startDate || ""),
     endDate: String(endDate || ""),
+    exceptions: sanitizeExceptionsMap_(exceptions || {}),
     updatedAt: new Date().toISOString(),
     version: APP_VERSION
   };
@@ -896,6 +915,62 @@ function sanitizeIdMap_(idMap) {
     if (key && val) out[key] = val;
   });
   return out;
+}
+
+function sanitizeExceptionsMap_(exMap) {
+  var out = {};
+  Object.keys(exMap || {}).forEach(function (k) {
+    var iso = String(k || "").trim();
+    var tarifa = String(exMap[k] || "").trim();
+    if (!iso || !tarifa) return;
+    if (!parseIsoDate_(iso)) return;
+    out[iso] = tarifa;
+  });
+  return out;
+}
+
+function parseExceptionsParam_(raw) {
+  if (!hasText_(raw)) return {};
+  try {
+    var parsed = JSON.parse(String(raw));
+    if (!parsed || typeof parsed !== "object") return {};
+    return sanitizeExceptionsMap_(parsed);
+  } catch (err) {
+    return {};
+  }
+}
+
+function filterExceptionsToRange_(exceptions, inicio, fin) {
+  var sanitized = sanitizeExceptionsMap_(exceptions || {});
+  var out = {};
+  Object.keys(sanitized).forEach(function (iso) {
+    var d = parseIsoDate_(iso);
+    if (!d) return;
+    if (d.getTime() < inicio.getTime() || d.getTime() > fin.getTime()) return;
+    out[iso] = sanitized[iso];
+  });
+  return out;
+}
+
+function resolveTarifaForDate_(payload, iso) {
+  var ex = (payload && payload.excepciones) ? payload.excepciones : {};
+  if (ex && ex[iso]) return String(ex[iso]);
+  return payload.tarifa || "Ninguna";
+}
+
+function copyPayload_(payload) {
+  return {
+    eventKey: payload.eventKey,
+    evento: payload.evento,
+    fechaInicio: payload.fechaInicio,
+    fechaFin: payload.fechaFin,
+    tarifa: payload.tarifa,
+    excepciones: sanitizeExceptionsMap_(payload.excepciones || {}),
+    extras: payload.extras,
+    mediaJornada: payload.mediaJornada,
+    jefeOperador: payload.jefeOperador,
+    dobleJornada: payload.dobleJornada
+  };
 }
 
 function parseFechaDesdeMesYDia_(mesStr, diaNum) {
