@@ -1,4 +1,4 @@
-function doPost(e) {
+function doPost_legacy_disabled(e) {
   const props = PropertiesService.getScriptProperties();
 
   // ✅ Spreadsheet 2026 (ponlo en Script Properties como SPREADSHEET_ID)
