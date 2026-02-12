@@ -374,6 +374,7 @@
   <script>
     const scriptURL = "https://script.google.com/macros/s/AKfycbwrgAgbS8C4TqhU5Uw-MFHAbb9moH8c9Mlnh4Rjv7XNiUNlRdYYQCap-PUTDXe9RcI/exec";
     let currentEventKey = "";
+    let listaEventosRequestId = 0;
 
     const MONTH_OPTIONS = [
       "Enero - 2026", "Febrero - 2026", "Marzo - 2026", "Abril - 2026",
@@ -465,6 +466,7 @@
 
     async function cargarListaEventos() {
       const lista = document.getElementById("listaEventos");
+      const requestId = ++listaEventosRequestId;
       lista.innerHTML = "";
       const query = document.getElementById("buscarEventoTxt").value.trim();
 
@@ -475,13 +477,19 @@
       mostrarMensajeEnviando(true);
       try {
         const data = await postForm(fd);
+        if (requestId !== listaEventosRequestId) return;
         mostrarMensajeEnviando(false);
         if (data.error) {
           alert(data.error);
           return;
         }
 
-        const events = data.events || [];
+        const byKey = new Map();
+        (data.events || []).forEach((ev) => {
+          if (!ev || !ev.eventKey) return;
+          if (!byKey.has(ev.eventKey)) byKey.set(ev.eventKey, ev);
+        });
+        const events = [...byKey.values()];
         if (!events.length) {
           const opt = document.createElement("option");
           opt.value = "";
@@ -497,6 +505,7 @@
           lista.appendChild(opt);
         });
       } catch (err) {
+        if (requestId !== listaEventosRequestId) return;
         mostrarMensajeEnviando(false);
         alert("Error al cargar eventos");
       }
