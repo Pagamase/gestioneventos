@@ -1,4 +1,4 @@
-var APP_VERSION = "event-workflow-2026-02-12-v1";
+var APP_VERSION = "event-workflow-2026-02-12-v2";
 
 var MONTH_NAMES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -61,7 +61,10 @@ function handleReset_(ss, calendars, params) {
   var hoja = ss.getSheetByName(mes);
   if (!hoja) return json_({ error: "Mes no valido", version: APP_VERSION });
 
+  var selected = [];
+  var byEventKey = {};
   var procesados = 0;
+
   dias.forEach(function (diaStr) {
     var dia = parseInt(diaStr, 10);
     if (isNaN(dia)) return;
@@ -71,10 +74,59 @@ function handleReset_(ss, calendars, params) {
     if (!fecha) return;
 
     var rowState = readRowState_(hoja, fila);
-    borrarEventoEnTodos_(calendars, rowState.noteData, rowState.evento, fecha);
-    clearRow_(hoja, fila);
+    selected.push({
+      dia: dia,
+      fila: fila,
+      fecha: fecha,
+      rowState: rowState
+    });
+
+    if (rowState.noteData && rowState.noteData.eventKey) {
+      byEventKey[rowState.noteData.eventKey] = true;
+    }
+  });
+
+  // Primero reseteamos filas sueltas (sin eventKey de rango).
+  selected.forEach(function (item) {
+    if (item.rowState.noteData && item.rowState.noteData.eventKey) return;
+    borrarEventoEnTodos_(calendars, item.rowState.noteData, item.rowState.evento, item.fecha);
+    clearRow_(hoja, item.fila);
     procesados++;
   });
+
+  // Si toca un dia perteneciente a un evento de rango, reseteamos el evento completo.
+  var keys = Object.keys(byEventKey);
+  if (keys.length > 0) {
+    var allRows = collectAllEventRows_(ss).filter(function (r) {
+      return byEventKey[r.noteData.eventKey];
+    });
+
+    var grouped = {};
+    allRows.forEach(function (r) {
+      var key = r.noteData.eventKey;
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(r);
+    });
+
+    Object.keys(grouped).forEach(function (key) {
+      var rows = grouped[key];
+      rows.sort(function (a, b) { return a.date.getTime() - b.date.getTime(); });
+      var first = rows[0];
+      var last = rows[rows.length - 1];
+      borrarEventoRangoEnTodos_(
+        calendars,
+        first.noteData,
+        first.evento || first.noteData.eventName,
+        first.date,
+        last.date
+      );
+
+      rows.forEach(function (r) {
+        clearRow_(r.sheet, r.row);
+        procesados++;
+      });
+    });
+  }
 
   return json_({ result: "success", dias: procesados, version: APP_VERSION });
 }
@@ -168,7 +220,8 @@ function handleGuardarEventoRango_(ss, calendars, params) {
   };
 
   var contexts = collectContextsForRange_(ss, inicio, fin, eventKey);
-  saveContexts_(calendars, contexts, payload);
+  var existingNoteData = contexts.length ? contexts[0].rowState.noteData : {};
+  saveRangeContexts_(calendars, contexts, payload, existingNoteData);
 
   return json_({
     result: "success",
@@ -328,12 +381,12 @@ function handleActualizarEvento_(ss, calendars, params) {
   var removedDays = 0;
   existingRows.forEach(function (r) {
     if (targetIsoSet[r.iso]) return;
-    borrarEventoEnTodos_(calendars, r.noteData, r.evento, r.date);
     clearRow_(r.sheet, r.row);
     removedDays++;
   });
 
-  saveContexts_(calendars, contexts, payload);
+  var existingNoteData = first.noteData || {};
+  saveRangeContexts_(calendars, contexts, payload, existingNoteData);
 
   return json_({
     result: "success",
@@ -344,16 +397,26 @@ function handleActualizarEvento_(ss, calendars, params) {
   });
 }
 
-function saveContexts_(calendars, contexts, payload) {
-  contexts.forEach(function (ctx) {
-    var idsMap = upsertEventoEnTodos_(
-      calendars,
-      ctx.rowState.noteData,
-      payload.evento,
-      ctx.date,
-      ctx.rowState.evento
-    );
+function saveRangeContexts_(calendars, contexts, payload, existingNoteData) {
+  if (!contexts || contexts.length === 0) return;
 
+  var inicio = parseIsoDate_(payload.fechaInicio);
+  var fin = parseIsoDate_(payload.fechaFin);
+  if (!inicio || !fin) throw new Error("Rango invalido");
+
+  var seed = existingNoteData || contexts[0].rowState.noteData || {};
+  var tituloAnterior = String(seed.eventName || contexts[0].rowState.evento || "").trim();
+
+  var idsMap = upsertEventoRangoEnTodos_(
+    calendars,
+    seed,
+    payload.evento,
+    inicio,
+    fin,
+    tituloAnterior
+  );
+
+  contexts.forEach(function (ctx) {
     writeRow_(ctx.sheet, ctx.row, payload);
 
     var noteData = buildNoteData_(
@@ -545,6 +608,38 @@ function upsertEventoEnTodos_(calendars, noteData, titulo, fecha, tituloAnterior
   return idsOut;
 }
 
+function upsertEventoRangoEnTodos_(calendars, noteData, titulo, fechaInicio, fechaFin, tituloAnterior) {
+  var idsOut = {};
+
+  calendars.forEach(function (cal, idx) {
+    var calId = String(cal.getId());
+    var existingId = getExistingIdForCalendar_(noteData, calId, idx);
+    var removed = 0;
+
+    var event = getEventoById_(cal, existingId);
+    if (event) {
+      event.deleteEvent();
+      removed++;
+    }
+
+    if (removed === 0 && tituloAnterior) {
+      removed += borrarPorTituloEnRangoEnCalendario_(cal, tituloAnterior, fechaInicio, fechaFin);
+    }
+    if (removed === 0 && titulo && titulo !== tituloAnterior) {
+      removed += borrarPorTituloEnRangoEnCalendario_(cal, titulo, fechaInicio, fechaFin);
+    }
+    if (removed === 0) {
+      removed += borrarAllDayEnCalendarioEnRango_(cal, fechaInicio, fechaFin);
+    }
+
+    // createAllDayEvent(start, end) usa end exclusivo.
+    var created = cal.createAllDayEvent(titulo, fechaInicio, addDays_(fechaFin, 1));
+    idsOut[calId] = created.getId();
+  });
+
+  return idsOut;
+}
+
 function borrarEventoEnTodos_(calendars, noteData, titulo, fecha) {
   calendars.forEach(function (cal, idx) {
     var calId = String(cal.getId());
@@ -562,6 +657,26 @@ function borrarEventoEnTodos_(calendars, noteData, titulo, fecha) {
 
     if (removed === 0) {
       borrarAllDayEnCalendarioPorDia_(cal, fecha);
+    }
+  });
+}
+
+function borrarEventoRangoEnTodos_(calendars, noteData, titulo, fechaInicio, fechaFin) {
+  calendars.forEach(function (cal, idx) {
+    var calId = String(cal.getId());
+    var existingId = getExistingIdForCalendar_(noteData, calId, idx);
+    var removed = 0;
+    var byId = getEventoById_(cal, existingId);
+    if (byId) {
+      byId.deleteEvent();
+      removed++;
+    }
+
+    if (removed === 0 && titulo) {
+      removed += borrarPorTituloEnRangoEnCalendario_(cal, titulo, fechaInicio, fechaFin);
+    }
+    if (removed === 0) {
+      borrarAllDayEnCalendarioEnRango_(cal, fechaInicio, fechaFin);
     }
   });
 }
@@ -610,6 +725,58 @@ function borrarAllDayEnCalendarioPorDia_(cal, fechaObjetivo) {
   });
 
   return removed;
+}
+
+function borrarPorTituloEnRangoEnCalendario_(cal, titulo, inicioObjetivo, finObjetivo) {
+  var objetivo = String(titulo || "").trim().toLowerCase();
+  if (!objetivo || !inicioObjetivo || !finObjetivo) return 0;
+
+  var inicio = addDays_(inicioObjetivo, -1);
+  var fin = addDays_(finObjetivo, 2);
+
+  var removed = 0;
+  cal.getEvents(inicio, fin).forEach(function (ev) {
+    var title = String(ev.getTitle() || "").trim().toLowerCase();
+    if (title !== objetivo) return;
+    if (!ev.isAllDayEvent()) return;
+
+    var evStart = new Date(ev.getAllDayStartDate().getFullYear(), ev.getAllDayStartDate().getMonth(), ev.getAllDayStartDate().getDate());
+    var evEndEx = ev.getAllDayEndDate ? ev.getAllDayEndDate() : addDays_(evStart, 1);
+    var evEnd = addDays_(new Date(evEndEx.getFullYear(), evEndEx.getMonth(), evEndEx.getDate()), -1);
+
+    if (rangesOverlapInclusive_(evStart, evEnd, inicioObjetivo, finObjetivo)) {
+      ev.deleteEvent();
+      removed++;
+    }
+  });
+
+  return removed;
+}
+
+function borrarAllDayEnCalendarioEnRango_(cal, inicioObjetivo, finObjetivo) {
+  if (!inicioObjetivo || !finObjetivo) return 0;
+  var inicio = addDays_(inicioObjetivo, -1);
+  var fin = addDays_(finObjetivo, 2);
+
+  var removed = 0;
+  cal.getEvents(inicio, fin).forEach(function (ev) {
+    if (!ev.isAllDayEvent()) return;
+
+    var evStart = new Date(ev.getAllDayStartDate().getFullYear(), ev.getAllDayStartDate().getMonth(), ev.getAllDayStartDate().getDate());
+    var evEndEx = ev.getAllDayEndDate ? ev.getAllDayEndDate() : addDays_(evStart, 1);
+    var evEnd = addDays_(new Date(evEndEx.getFullYear(), evEndEx.getMonth(), evEndEx.getDate()), -1);
+
+    if (rangesOverlapInclusive_(evStart, evEnd, inicioObjetivo, finObjetivo)) {
+      ev.deleteEvent();
+      removed++;
+    }
+  });
+
+  return removed;
+}
+
+function rangesOverlapInclusive_(aStart, aEnd, bStart, bEnd) {
+  return aStart.getTime() <= bEnd.getTime() && bStart.getTime() <= aEnd.getTime();
 }
 
 function getEventoById_(cal, id) {
@@ -719,6 +886,12 @@ function toIsoDate_(date) {
     pad2_(date.getMonth() + 1),
     pad2_(date.getDate())
   ].join("-");
+}
+
+function addDays_(date, days) {
+  var d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  d.setDate(d.getDate() + days);
+  return d;
 }
 
 function pad2_(n) {
