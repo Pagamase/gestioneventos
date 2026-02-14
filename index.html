@@ -148,6 +148,10 @@
       margin-top: 4px;
     }
 
+    .single-day-check {
+      margin-top: -4px;
+    }
+
     .checks label {
       color: var(--text);
       font-size: 0.92rem;
@@ -299,6 +303,7 @@
           <input type="date" id="fechaFin" name="fechaFin" required />
         </div>
       </div>
+      <label class="single-day-check"><input type="checkbox" id="soloUnDia" /> Marcar solo un dia</label>
 
       <label for="tarifa">Tarifa</label>
       <select id="tarifa" name="tarifa" required>
@@ -596,6 +601,18 @@
       updateExceptionsSummary();
     }
 
+    function applySingleDayMode() {
+      const onlyOneDay = document.getElementById("soloUnDia").checked;
+      const fechaInicioEl = document.getElementById("fechaInicio");
+      const fechaFinEl = document.getElementById("fechaFin");
+      if (onlyOneDay) {
+        if (fechaInicioEl.value) fechaFinEl.value = fechaInicioEl.value;
+        fechaFinEl.disabled = true;
+      } else {
+        fechaFinEl.disabled = false;
+      }
+    }
+
     function resetFormularioEvento() {
       currentEventKey = "";
       currentExceptions = {};
@@ -604,6 +621,8 @@
       const today = toLocalIso(new Date());
       document.getElementById("fechaInicio").value = today;
       document.getElementById("fechaFin").value = today;
+      document.getElementById("soloUnDia").checked = true;
+      applySingleDayMode();
       document.getElementById("extras").value = "No";
       document.getElementById("tarifa").value = "Ninguna";
       setModoEvento();
@@ -756,6 +775,8 @@
         document.getElementById("evento").value = ev.evento || "";
         document.getElementById("fechaInicio").value = ev.fechaInicio || "";
         document.getElementById("fechaFin").value = ev.fechaFin || "";
+        document.getElementById("soloUnDia").checked = !!ev.fechaInicio && ev.fechaInicio === ev.fechaFin;
+        applySingleDayMode();
         document.getElementById("tarifa").value = ev.tarifa || "Ninguna";
         document.getElementById("extras").value = ev.extras || "No";
         document.getElementById("mediaJornada").checked = !!ev.mediaJornada;
@@ -876,7 +897,10 @@
 
       const evento = document.getElementById("evento").value.trim();
       const fechaInicio = document.getElementById("fechaInicio").value;
-      const fechaFin = document.getElementById("fechaFin").value;
+      const onlyOneDay = document.getElementById("soloUnDia").checked;
+      const fechaFinEl = document.getElementById("fechaFin");
+      if (onlyOneDay && fechaInicio) fechaFinEl.value = fechaInicio;
+      const fechaFin = fechaFinEl.value;
       if (!evento) return alert("Falta nombre del evento");
       if (!fechaInicio || !fechaFin) return alert("Completa fechas");
       if (fechaInicio > fechaFin) return alert("La fecha final debe ser mayor o igual");
@@ -917,6 +941,12 @@
 
     document.getElementById("buscarEventoTxt").addEventListener("input", () => {
       cargarListaEventos();
+    });
+    document.getElementById("soloUnDia").addEventListener("change", applySingleDayMode);
+    document.getElementById("fechaInicio").addEventListener("change", () => {
+      if (document.getElementById("soloUnDia").checked) {
+        document.getElementById("fechaFin").value = document.getElementById("fechaInicio").value;
+      }
     });
     window.addEventListener("resize", applyMobileUiTweaks);
 
