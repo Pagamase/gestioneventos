@@ -184,6 +184,10 @@
       font-weight: 600;
     }
 
+    #listaEventos {
+      min-height: 220px;
+    }
+
     .modal {
       display: none;
       position: fixed;
@@ -233,6 +237,10 @@
 
       .exceptions-row {
         grid-template-columns: 1fr;
+      }
+
+      #listaEventos {
+        min-height: 44px;
       }
     }
   </style>
@@ -364,7 +372,7 @@
       <button type="button" class="btn-secondary" onclick="cargarListaEventos()">Actualizar lista</button>
 
       <label for="listaEventos">Eventos encontrados</label>
-      <select id="listaEventos" size="8"></select>
+      <select id="listaEventos"></select>
 
       <div class="modal-actions">
         <button type="button" onclick="cargarEventoSeleccionado()">Cargar evento</button>
@@ -406,6 +414,7 @@
     let currentEventKey = "";
     let listaEventosRequestId = 0;
     let currentExceptions = {};
+    let backendHealth = null;
 
     function isDevContext() {
       const params = new URLSearchParams(window.location.search);
@@ -466,6 +475,10 @@
       document.getElementById(id).style.display = "flex";
       if (id === "diasLibresModal") generateNumberFields("days-container");
       if (id === "excepcionesModal") renderExcepcionesRows();
+      if (id === "eventosModal") {
+        document.getElementById("buscarEventoTxt").value = "";
+        applyMobileUiTweaks();
+      }
     }
 
     function closeModal(id) {
@@ -486,9 +499,49 @@
       }
     }
 
-    async function postForm(formData) {
-      const res = await fetch(scriptURL, { method: "POST", body: formData });
-      return res.json();
+    function applyMobileUiTweaks() {
+      const lista = document.getElementById("listaEventos");
+      if (!lista) return;
+      lista.size = window.matchMedia("(max-width: 640px)").matches ? 1 : 8;
+    }
+
+    function maybeWarnCalendars(data) {
+      if (!data) return;
+      const n = Number(data.calendarsProcesados || data.calendarsResolved || 0);
+      if (!n || n >= 2) return;
+      const key = `calwarn:${data.version || "unknown"}:${n}`;
+      if (sessionStorage.getItem(key)) return;
+      sessionStorage.setItem(key, "1");
+      alert(`Atencion: backend con ${n} calendario(s) activo(s). Revisa CALENDAR_ID_1 y CALENDAR_ID_2.`);
+    }
+
+    async function postForm(params) {
+      const body = params instanceof URLSearchParams ? params : new URLSearchParams(params || {});
+      const res = await fetch(scriptURL, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+        body: body.toString(),
+        cache: "no-store"
+      });
+      const raw = await res.text();
+      let data;
+      try {
+        data = JSON.parse(raw);
+      } catch (err) {
+        throw new Error("Respuesta no valida del backend");
+      }
+      return data;
+    }
+
+    async function checkBackendHealth() {
+      const fd = new URLSearchParams();
+      fd.append("modo", "health");
+      try {
+        backendHealth = await postForm(fd);
+        maybeWarnCalendars(backendHealth);
+      } catch (err) {
+        // no-op
+      }
     }
 
     function setModoEvento() {
@@ -599,7 +652,7 @@
       lista.innerHTML = "";
       const query = document.getElementById("buscarEventoTxt").value.trim();
 
-      const fd = new FormData();
+      const fd = new URLSearchParams();
       fd.append("modo", "listarEventos");
       if (query) fd.append("q", query);
 
@@ -612,6 +665,7 @@
           alert(data.error);
           return;
         }
+        maybeWarnCalendars(data);
 
         const byKey = new Map();
         (data.events || []).forEach((ev) => {
@@ -641,7 +695,7 @@
     }
 
     async function cargarEventoPorKey(key, cerrarModal = true) {
-      const fd = new FormData();
+      const fd = new URLSearchParams();
       fd.append("modo", "obtenerEvento");
       fd.append("eventKey", key);
 
@@ -710,7 +764,7 @@
       const ok = confirm("Se eliminara el evento completo: Sheets y calendarios. ¿Continuar?");
       if (!ok) return;
 
-      const fd = new FormData();
+      const fd = new URLSearchParams();
       fd.append("modo", "eliminarEvento");
       fd.append("eventKey", currentEventKey);
 
@@ -719,6 +773,7 @@
         const data = await postForm(fd);
         mostrarMensajeEnviando(false);
         if (data.error) return alert(data.error);
+        maybeWarnCalendars(data);
 
         alert(`Evento eliminado (${data.diasEliminados || 0} dias).`);
         resetFormularioEvento();
@@ -734,7 +789,7 @@
         .filter(Boolean);
       if (!dias.length) return alert("Introduce al menos un dia");
 
-      const fd = new FormData();
+      const fd = new URLSearchParams();
       fd.append("modo", "diasLibres");
       fd.append("mes", document.getElementById("mesDiasLibres").value);
       fd.append("dias", dias.join(","));
@@ -744,6 +799,7 @@
         const data = await postForm(fd);
         mostrarMensajeEnviando(false);
         if (data.error) return alert(data.error);
+        maybeWarnCalendars(data);
         alert("Dias libres asignados");
       } catch (err) {
         mostrarMensajeEnviando(false);
@@ -752,7 +808,7 @@
     }
 
     async function consultarGanancia() {
-      const fd = new FormData();
+      const fd = new URLSearchParams();
       const mes = document.getElementById("mesGanancia").value;
       fd.append("modo", "consulta");
       fd.append("mes", mes);
@@ -782,7 +838,7 @@
       if (!fechaInicio || !fechaFin) return alert("Completa fechas");
       if (fechaInicio > fechaFin) return alert("La fecha final debe ser mayor o igual");
 
-      const fd = new FormData();
+      const fd = new URLSearchParams();
       fd.append("modo", currentEventKey ? "actualizarEvento" : "guardarEventoRango");
       if (currentEventKey) fd.append("eventKey", currentEventKey);
       fd.append("evento", evento);
@@ -800,6 +856,7 @@
         const data = await postForm(fd);
         mostrarMensajeEnviando(false);
         if (data.error) return manejarConflictoEvento(data);
+        maybeWarnCalendars(data);
 
         if (data.eventKey) currentEventKey = data.eventKey;
         setModoEvento();
@@ -818,8 +875,11 @@
     document.getElementById("buscarEventoTxt").addEventListener("input", () => {
       cargarListaEventos();
     });
+    window.addEventListener("resize", applyMobileUiTweaks);
 
     applyEnvironmentUi();
+    applyMobileUiTweaks();
+    checkBackendHealth();
     initMonthSelects();
     resetFormularioEvento();
   </script>

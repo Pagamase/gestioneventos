@@ -1,4 +1,4 @@
-var APP_VERSION = "event-workflow-2026-02-12-v6";
+var APP_VERSION = "event-workflow-2026-02-14-mobile-v1";
 
 var MONTH_NAMES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -19,24 +19,31 @@ function doPost(e) {
 
     var spreadsheetId = props.getProperty("SPREADSHEET_ID") || "1GlBG2lRCFEkdZc8q_igLwia8ekyRGtUT5qo8sWqLgH4";
     var ss = SpreadsheetApp.openById(spreadsheetId);
-    var calendars = resolveCalendars_(props);
-    if (calendars.length === 0) {
-      return json_({ error: "No hay calendarios configurados.", version: APP_VERSION });
+    var modo = String(params.modo || "guardar");
+    var calendarsCache = null;
+
+    function requireCalendars_() {
+      if (calendarsCache === null) {
+        calendarsCache = resolveCalendars_(props);
+      }
+      if (calendarsCache.length === 0) {
+        throw new Error("No hay calendarios configurados.");
+      }
+      return calendarsCache;
     }
 
-    var modo = String(params.modo || "guardar");
-
     if (modo === "consulta") return handleConsulta_(ss, params);
-    if (modo === "reset") return handleReset_(ss, calendars, params);
-    if (modo === "diasLibres") return handleDiasLibres_(ss, calendars, params);
-
-    if (modo === "guardarEventoRango") return handleGuardarEventoRango_(ss, calendars, params);
     if (modo === "listarEventos") return handleListarEventos_(ss, params);
     if (modo === "obtenerEvento") return handleObtenerEvento_(ss, params);
-    if (modo === "actualizarEvento") return handleActualizarEvento_(ss, calendars, params);
-    if (modo === "eliminarEvento") return handleEliminarEvento_(ss, calendars, params);
+    if (modo === "health") return handleHealth_(props);
 
-    return handleGuardarLegacyDia_(ss, calendars, params);
+    if (modo === "reset") return handleReset_(ss, requireCalendars_(), params);
+    if (modo === "diasLibres") return handleDiasLibres_(ss, requireCalendars_(), params);
+    if (modo === "guardarEventoRango") return handleGuardarEventoRango_(ss, requireCalendars_(), params);
+    if (modo === "actualizarEvento") return handleActualizarEvento_(ss, requireCalendars_(), params);
+    if (modo === "eliminarEvento") return handleEliminarEvento_(ss, requireCalendars_(), params);
+
+    return handleGuardarLegacyDia_(ss, requireCalendars_(), params);
   } catch (err) {
     var msg = toErrorMessage_(err);
     var conflictEventKey = extractConflictEventKey_(msg);
@@ -54,6 +61,25 @@ function handleConsulta_(ss, params) {
   var total = hoja.getRange("K33").getValue();
   var real = hoja.getRange("O33").getValue();
   return json_({ total: total, real: real, version: APP_VERSION });
+}
+
+function handleHealth_(props) {
+  var configuredIds = [
+    String(props.getProperty("CALENDAR_ID_1") || "").trim(),
+    String(props.getProperty("CALENDAR_ID_2") || "").trim()
+  ].filter(Boolean);
+
+  var resolvedCalendars = configuredIds
+    .map(function (id) { return CalendarApp.getCalendarById(id); })
+    .filter(Boolean);
+
+  return json_({
+    ok: true,
+    version: APP_VERSION,
+    calendarsConfigured: configuredIds.length,
+    calendarsResolved: resolvedCalendars.length,
+    calendarsProcesados: resolvedCalendars.length
+  });
 }
 
 function handleReset_(ss, calendars, params) {
@@ -231,12 +257,13 @@ function handleGuardarEventoRango_(ss, calendars, params) {
 
   var contexts = collectContextsForRange_(ss, inicio, fin, eventKey);
   var existingNoteData = contexts.length ? contexts[0].rowState.noteData : {};
-  saveRangeContexts_(calendars, contexts, payload, existingNoteData);
+  var idsMap = saveRangeContexts_(calendars, contexts, payload, existingNoteData);
 
   return json_({
     result: "success",
     eventKey: eventKey,
     dias: contexts.length,
+    calendarsProcesados: Object.keys(idsMap || {}).length,
     version: APP_VERSION
   });
 }
@@ -402,13 +429,14 @@ function handleActualizarEvento_(ss, calendars, params) {
   });
 
   var existingNoteData = first.noteData || {};
-  saveRangeContexts_(calendars, contexts, payload, existingNoteData);
+  var idsMap = saveRangeContexts_(calendars, contexts, payload, existingNoteData);
 
   return json_({
     result: "success",
     eventKey: eventKey,
     diasActualizados: contexts.length,
     diasEliminados: removedDays,
+    calendarsProcesados: Object.keys(idsMap || {}).length,
     version: APP_VERSION
   });
 }
@@ -444,12 +472,13 @@ function handleEliminarEvento_(ss, calendars, params) {
     result: "success",
     eventKey: eventKey,
     diasEliminados: rows.length,
+    calendarsProcesados: calendars.length,
     version: APP_VERSION
   });
 }
 
 function saveRangeContexts_(calendars, contexts, payload, existingNoteData) {
-  if (!contexts || contexts.length === 0) return;
+  if (!contexts || contexts.length === 0) return {};
 
   var inicio = parseIsoDate_(payload.fechaInicio);
   var fin = parseIsoDate_(payload.fechaFin);
@@ -482,6 +511,8 @@ function saveRangeContexts_(calendars, contexts, payload, existingNoteData) {
     );
     ctx.sheet.getRange(ctx.row, 4).setNote(JSON.stringify(noteData));
   });
+
+  return idsMap;
 }
 
 function collectContextsForRange_(ss, inicio, fin, eventKey) {
