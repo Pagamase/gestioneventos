@@ -190,6 +190,13 @@
       font-weight: 600;
     }
 
+    #eventosLoadingMsg {
+      display: none;
+      color: var(--warn);
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+
     #listaEventos {
       min-height: 220px;
       overflow-y: auto;
@@ -377,6 +384,7 @@
       <label for="buscarEventoTxt">Buscar por nombre</label>
       <input type="text" id="buscarEventoTxt" placeholder="Escribe para filtrar" />
       <button type="button" class="btn-secondary" onclick="cargarListaEventos()">Actualizar lista</button>
+      <div id="eventosLoadingMsg" aria-live="polite">Leyendo datos...</div>
 
       <label for="listaEventos">Eventos encontrados</label>
       <select id="listaEventos"></select>
@@ -487,12 +495,16 @@
       if (id === "eventosModal") {
         document.getElementById("buscarEventoTxt").value = "";
         applyMobileUiTweaks();
+        mostrarMensajeEventos(false);
       }
     }
 
     function closeModal(id) {
       document.getElementById(id).style.display = "none";
       document.getElementById("formPrincipal").style.display = "block";
+      if (id === "eventosModal") {
+        mostrarMensajeEventos(false);
+      }
       unlockBodyScroll();
     }
 
@@ -537,6 +549,13 @@
       if (sessionStorage.getItem(key)) return;
       sessionStorage.setItem(key, "1");
       alert(`Atencion: backend con ${n} calendario(s) activo(s). Revisa CALENDAR_ID_1 y CALENDAR_ID_2.`);
+    }
+
+    function mostrarMensajeEventos(mostrar = true, texto = "Leyendo datos...") {
+      const el = document.getElementById("eventosLoadingMsg");
+      if (!el) return;
+      el.textContent = texto;
+      el.style.display = mostrar ? "block" : "none";
     }
 
     async function postForm(params) {
@@ -680,11 +699,11 @@
       fd.append("modo", "listarEventos");
       if (query) fd.append("q", query);
 
-      mostrarMensajeEnviando(true);
+      mostrarMensajeEventos(true, "Leyendo datos...");
       try {
         const data = await postForm(fd);
         if (requestId !== listaEventosRequestId) return;
-        mostrarMensajeEnviando(false);
+        mostrarMensajeEventos(false);
         if (data.error) {
           alert(data.error);
           return;
@@ -713,7 +732,7 @@
         });
       } catch (err) {
         if (requestId !== listaEventosRequestId) return;
-        mostrarMensajeEnviando(false);
+        mostrarMensajeEventos(false);
         alert("Error al cargar eventos");
       }
     }
@@ -723,10 +742,10 @@
       fd.append("modo", "obtenerEvento");
       fd.append("eventKey", key);
 
-      mostrarMensajeEnviando(true);
+      mostrarMensajeEventos(true, "Leyendo datos del evento...");
       try {
         const data = await postForm(fd);
-        mostrarMensajeEnviando(false);
+        mostrarMensajeEventos(false);
         if (data.error) {
           alert(data.error);
           return false;
@@ -747,7 +766,7 @@
         if (cerrarModal) closeModal("eventosModal");
         return true;
       } catch (err) {
-        mostrarMensajeEnviando(false);
+        mostrarMensajeEventos(false);
         alert("Error al cargar el evento");
         return false;
       }
