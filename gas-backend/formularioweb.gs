@@ -1,4 +1,4 @@
-var APP_VERSION = "event-workflow-2026-02-14-mobile-v1";
+var APP_VERSION = "event-workflow-2026-02-14-mobile-v2";
 
 var MONTH_NAMES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -676,8 +676,7 @@ function upsertEventoEnTodos_(calendars, noteData, titulo, fecha, tituloAnterior
     var event = getEventoById_(cal, existingId);
     var removed = 0;
 
-    if (event) {
-      event.deleteEvent();
+    if (safeDeleteEvent_(event)) {
       removed++;
     }
 
@@ -707,8 +706,7 @@ function upsertEventoRangoEnTodos_(calendars, noteData, titulo, fechaInicio, fec
     var removed = 0;
 
     var event = getEventoById_(cal, existingId);
-    if (event) {
-      event.deleteEvent();
+    if (safeDeleteEvent_(event)) {
       removed++;
     }
 
@@ -736,8 +734,7 @@ function borrarEventoEnTodos_(calendars, noteData, titulo, fecha) {
     var existingId = getExistingIdForCalendar_(noteData, calId, idx);
     var removed = 0;
     var byId = getEventoById_(cal, existingId);
-    if (byId) {
-      byId.deleteEvent();
+    if (safeDeleteEvent_(byId)) {
       removed++;
     }
 
@@ -757,8 +754,7 @@ function borrarEventoRangoEnTodos_(calendars, noteData, titulo, fechaInicio, fec
     var existingId = getExistingIdForCalendar_(noteData, calId, idx);
     var removed = 0;
     var byId = getEventoById_(cal, existingId);
-    if (byId) {
-      byId.deleteEvent();
+    if (safeDeleteEvent_(byId)) {
       removed++;
     }
 
@@ -787,8 +783,7 @@ function borrarPorTituloEnCalendario_(cal, titulo, fechaObjetivo) {
     var dt = ev.isAllDayEvent() ? ev.getAllDayStartDate() : ev.getStartTime();
     var evDay = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime();
     var deltaDays = Math.abs((evDay - base) / 86400000);
-    if (deltaDays <= 1) {
-      ev.deleteEvent();
+    if (deltaDays <= 1 && safeDeleteEvent_(ev)) {
       removed++;
     }
   });
@@ -808,8 +803,7 @@ function borrarAllDayEnCalendarioPorDia_(cal, fechaObjetivo) {
     var dt = ev.getAllDayStartDate();
     var evDay = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime();
     var deltaDays = Math.abs((evDay - base) / 86400000);
-    if (deltaDays <= 1) {
-      ev.deleteEvent();
+    if (deltaDays <= 1 && safeDeleteEvent_(ev)) {
       removed++;
     }
   });
@@ -834,8 +828,7 @@ function borrarPorTituloEnRangoEnCalendario_(cal, titulo, inicioObjetivo, finObj
     var evEndEx = ev.getAllDayEndDate ? ev.getAllDayEndDate() : addDays_(evStart, 1);
     var evEnd = addDays_(new Date(evEndEx.getFullYear(), evEndEx.getMonth(), evEndEx.getDate()), -1);
 
-    if (rangesOverlapInclusive_(evStart, evEnd, inicioObjetivo, finObjetivo)) {
-      ev.deleteEvent();
+    if (rangesOverlapInclusive_(evStart, evEnd, inicioObjetivo, finObjetivo) && safeDeleteEvent_(ev)) {
       removed++;
     }
   });
@@ -856,8 +849,7 @@ function borrarAllDayEnCalendarioEnRango_(cal, inicioObjetivo, finObjetivo) {
     var evEndEx = ev.getAllDayEndDate ? ev.getAllDayEndDate() : addDays_(evStart, 1);
     var evEnd = addDays_(new Date(evEndEx.getFullYear(), evEndEx.getMonth(), evEndEx.getDate()), -1);
 
-    if (rangesOverlapInclusive_(evStart, evEnd, inicioObjetivo, finObjetivo)) {
-      ev.deleteEvent();
+    if (rangesOverlapInclusive_(evStart, evEnd, inicioObjetivo, finObjetivo) && safeDeleteEvent_(ev)) {
       removed++;
     }
   });
@@ -883,6 +875,25 @@ function getEventoById_(cal, id) {
     }
     return null;
   }
+}
+
+function safeDeleteEvent_(ev) {
+  if (!ev) return false;
+  try {
+    ev.deleteEvent();
+    return true;
+  } catch (err) {
+    if (isMissingEventError_(err)) return false;
+    throw err;
+  }
+}
+
+function isMissingEventError_(err) {
+  var msg = normalizeText_(toErrorMessage_(err));
+  return msg.indexOf("NO EXISTE") !== -1 ||
+    msg.indexOf("YA SE HA ELIMINADO") !== -1 ||
+    msg.indexOf("ALREADY BEEN DELETED") !== -1 ||
+    msg.indexOf("ALREADY DELETED") !== -1;
 }
 
 function parseNoteData_(rawNote) {
