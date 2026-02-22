@@ -1,4 +1,4 @@
-var APP_VERSION = "event-workflow-2026-02-14-mobile-v2";
+var APP_VERSION = "event-workflow-2026-02-14-mobile-v3";
 
 var MONTH_NAMES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -164,31 +164,42 @@ function handleReset_(ss, calendars, params) {
 
 function handleDiasLibres_(ss, calendars, params) {
   var mes = String(params.mes || "");
-  var dias = String(params.dias || "")
-    .split(",")
+  var diasRaw = String(params.dias || "");
+  var dias = diasRaw
+    .split(/[\s,;]+/)
     .map(function (d) { return d.trim(); })
-    .filter(Boolean);
+    .filter(Boolean)
+    .map(function (d) { return parseInt(d, 10); })
+    .filter(function (n) { return !isNaN(n) && n >= 1 && n <= 31; });
+  if (dias.length === 0) {
+    return json_({ error: "No se han detectado dias validos", version: APP_VERSION });
+  }
+
+  var uniqueDias = [];
+  var seen = {};
+  dias.forEach(function (dia) {
+    if (seen[dia]) return;
+    seen[dia] = true;
+    uniqueDias.push(dia);
+  });
 
   var hoja = ss.getSheetByName(mes);
   if (!hoja) return json_({ error: "Mes no valido", version: APP_VERSION });
 
   var procesados = 0;
-  dias.forEach(function (diaStr) {
-    var dia = parseInt(diaStr, 10);
-    if (isNaN(dia)) return;
-
+  uniqueDias.forEach(function (dia) {
     var fila = dia + 1;
     var fecha = parseFechaDesdeMesYDia_(mes, dia);
     if (!fecha) return;
 
     var rowState = readRowState_(hoja, fila);
-    var idsMap = upsertEventoEnTodos_(calendars, rowState.noteData, "Descanso", fecha, rowState.evento);
+    var idsMap = upsertEventoDiaExactoEnTodos_(calendars, rowState.noteData, "Descanso", fecha, rowState.evento);
     hoja.getRange(fila, 3).setValue("Descanso");
     hoja.getRange(fila, 4).setNote(JSON.stringify(buildNoteData_(idsMap, "", "Descanso", "", "")));
     procesados++;
   });
 
-  return json_({ result: "success", dias: procesados, version: APP_VERSION });
+  return json_({ result: "success", dias: procesados, solicitados: uniqueDias.length, version: APP_VERSION });
 }
 
 function handleGuardarLegacyDia_(ss, calendars, params) {
@@ -727,6 +738,33 @@ function upsertEventoRangoEnTodos_(calendars, noteData, titulo, fechaInicio, fec
 
   return idsOut;
 }
+function upsertEventoDiaExactoEnTodos_(calendars, noteData, titulo, fecha, tituloAnterior) {
+  var idsOut = {};
+
+  calendars.forEach(function (cal, idx) {
+    var calId = String(cal.getId());
+    var existingId = getExistingIdForCalendar_(noteData, calId, idx);
+    var removed = 0;
+
+    if (safeDeleteEvent_(getEventoById_(cal, existingId))) {
+      removed++;
+    }
+    if (removed === 0 && tituloAnterior) {
+      removed += borrarPorTituloEnCalendarioDiaExacto_(cal, tituloAnterior, fecha);
+    }
+    if (removed === 0 && titulo && titulo !== tituloAnterior) {
+      removed += borrarPorTituloEnCalendarioDiaExacto_(cal, titulo, fecha);
+    }
+    if (removed === 0) {
+      removed += borrarAllDayEnCalendarioDiaExacto_(cal, fecha);
+    }
+
+    var created = cal.createAllDayEvent(titulo, fecha);
+    idsOut[calId] = created.getId();
+  });
+
+  return idsOut;
+}
 
 function borrarEventoEnTodos_(calendars, noteData, titulo, fecha) {
   calendars.forEach(function (cal, idx) {
@@ -806,6 +844,40 @@ function borrarAllDayEnCalendarioPorDia_(cal, fechaObjetivo) {
     if (deltaDays <= 1 && safeDeleteEvent_(ev)) {
       removed++;
     }
+  });
+
+  return removed;
+}
+function borrarPorTituloEnCalendarioDiaExacto_(cal, titulo, fechaObjetivo) {
+  var objetivo = String(titulo || "").trim().toLowerCase();
+  if (!objetivo || !fechaObjetivo) return 0;
+
+  var inicio = new Date(fechaObjetivo.getFullYear(), fechaObjetivo.getMonth(), fechaObjetivo.getDate() - 1);
+  var fin = new Date(fechaObjetivo.getFullYear(), fechaObjetivo.getMonth(), fechaObjetivo.getDate() + 2);
+
+  var removed = 0;
+  cal.getEvents(inicio, fin).forEach(function (ev) {
+    var title = String(ev.getTitle() || "").trim().toLowerCase();
+    if (title !== objetivo) return;
+    var dt = ev.isAllDayEvent() ? ev.getAllDayStartDate() : ev.getStartTime();
+    if (!isSameCalendarDay_(dt, fechaObjetivo)) return;
+    if (safeDeleteEvent_(ev)) removed++;
+  });
+
+  return removed;
+}
+
+function borrarAllDayEnCalendarioDiaExacto_(cal, fechaObjetivo) {
+  if (!fechaObjetivo) return 0;
+  var inicio = new Date(fechaObjetivo.getFullYear(), fechaObjetivo.getMonth(), fechaObjetivo.getDate() - 1);
+  var fin = new Date(fechaObjetivo.getFullYear(), fechaObjetivo.getMonth(), fechaObjetivo.getDate() + 2);
+
+  var removed = 0;
+  cal.getEvents(inicio, fin).forEach(function (ev) {
+    if (!ev.isAllDayEvent()) return;
+    var dt = ev.getAllDayStartDate();
+    if (!isSameCalendarDay_(dt, fechaObjetivo)) return;
+    if (safeDeleteEvent_(ev)) removed++;
   });
 
   return removed;
@@ -896,6 +968,12 @@ function isMissingEventError_(err) {
     msg.indexOf("ALREADY DELETED") !== -1;
 }
 
+function isSameCalendarDay_(a, b) {
+  if (!a || !b) return false;
+  return a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+}
 function parseNoteData_(rawNote) {
   var raw = String(rawNote || "").trim();
   var out = {
@@ -1179,3 +1257,4 @@ function json_(obj) {
     .createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
 }
+

@@ -864,7 +864,13 @@
         mostrarMensajeEnviando(false);
         if (data.error) return alert(data.error);
         maybeWarnCalendars(data);
-        alert("Dias libres asignados");
+        const asignados = Number(data.dias || 0);
+        const solicitados = Number(data.solicitados || asignados);
+        if (solicitados !== asignados) {
+          alert(`Dias libres asignados ${asignados}/${solicitados}`);
+        } else {
+          alert(`Dias libres asignados (${asignados})`);
+        }
       } catch (err) {
         mostrarMensajeEnviando(false);
         alert("Error al asignar dias libres");
@@ -958,3 +964,4 @@
   </script>
 </body>
 </html>
+
