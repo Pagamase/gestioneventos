@@ -949,11 +949,13 @@
       cargarListaEventos();
     });
     document.getElementById("soloUnDia").addEventListener("change", applySingleDayMode);
-    document.getElementById("fechaInicio").addEventListener("change", () => {
-      if (document.getElementById("soloUnDia").checked) {
-        document.getElementById("fechaFin").value = document.getElementById("fechaInicio").value;
-      }
-    });
+    function syncFechaFinConInicio() {
+      const inicio = document.getElementById("fechaInicio").value;
+      if (!inicio) return;
+      document.getElementById("fechaFin").value = inicio;
+    }
+    document.getElementById("fechaInicio").addEventListener("change", syncFechaFinConInicio);
+    document.getElementById("fechaInicio").addEventListener("input", syncFechaFinConInicio);
     window.addEventListener("resize", applyMobileUiTweaks);
 
     applyEnvironmentUi();
@@ -964,4 +966,6 @@
   </script>
 </body>
 </html>
+
+
 
