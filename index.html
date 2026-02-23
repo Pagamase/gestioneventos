@@ -386,6 +386,8 @@
   <div id="eventosModal" class="modal">
     <div class="modal-content">
       <h3>Recuperar evento</h3>
+      <label for="filtroMesEvento">Filtrar por mes</label>
+      <select id="filtroMesEvento"></select>
       <label for="buscarEventoTxt">Buscar por nombre</label>
       <input type="text" id="buscarEventoTxt" placeholder="Escribe para filtrar" />
       <button type="button" class="btn-secondary" onclick="cargarListaEventos()">Actualizar lista</button>
@@ -457,6 +459,10 @@
       "Mayo - 2026", "Junio - 2026", "Julio - 2026", "Agosto - 2026",
       "Septiembre - 2026", "Octubre - 2026", "Noviembre - 2026", "Diciembre - 2026"
     ];
+    const MONTH_NAMES_ES = [
+      "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+      "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+    ];
 
     function mostrarMensajeEnviando(mostrar = true) {
       document.getElementById("enviandoMsg").style.display = mostrar ? "block" : "none";
@@ -480,9 +486,7 @@
           select.appendChild(opt);
         });
       });
-
-      const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-      const currentMonthText = `${monthNames[new Date().getMonth()]} - 2026`;
+      const currentMonthText = `${MONTH_NAMES_ES[new Date().getMonth()]} - 2026`;
       ["mesDiasLibres", "mesGanancia"].forEach((id) => {
         const select = document.getElementById(id);
         if ([...select.options].some((o) => o.value === currentMonthText)) {
@@ -491,6 +495,51 @@
       });
     }
 
+    function initFiltroMesEventos() {
+      const select = document.getElementById("filtroMesEvento");
+      if (!select) return;
+      const prev = select.value || "ALL";
+      select.innerHTML = "";
+
+      const allOpt = document.createElement("option");
+      allOpt.value = "ALL";
+      allOpt.textContent = "Todos los meses";
+      select.appendChild(allOpt);
+
+      MONTH_OPTIONS.forEach((label) => {
+        const iso = monthOptionToIso_(label);
+        if (!iso) return;
+        const opt = document.createElement("option");
+        opt.value = iso;
+        opt.textContent = label;
+        select.appendChild(opt);
+      });
+
+      if ([...select.options].some((o) => o.value === prev)) {
+        select.value = prev;
+      } else {
+        select.value = "ALL";
+      }
+    }
+
+    function monthOptionToIso_(label) {
+      const parts = String(label || "").split(" - ");
+      if (parts.length !== 2) return "";
+      const monthIndex = MONTH_NAMES_ES.indexOf(parts[0].trim());
+      const year = parts[1].trim();
+      if (monthIndex < 0 || !/^\d{4}$/.test(year)) return "";
+      return `${year}-${String(monthIndex + 1).padStart(2, "0")}`;
+    }
+
+    function eventMatchesMonthFilter_(ev, monthFilter) {
+      if (!monthFilter || monthFilter === "ALL") return true;
+      const start = String(ev && ev.fechaInicio ? ev.fechaInicio : "");
+      const end = String(ev && ev.fechaFin ? ev.fechaFin : start);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) return true;
+      const startMonth = start.slice(0, 7);
+      const endMonth = /^\d{4}-\d{2}-\d{2}$/.test(end) ? end.slice(0, 7) : startMonth;
+      return monthFilter >= startMonth && monthFilter <= endMonth;
+    }
     function showModal(id) {
       lockBodyScroll();
       document.getElementById("formPrincipal").style.display = "none";
@@ -713,6 +762,7 @@
       const requestId = ++listaEventosRequestId;
       lista.innerHTML = "";
       const query = document.getElementById("buscarEventoTxt").value.trim();
+      const monthFilter = document.getElementById("filtroMesEvento").value || "ALL";
 
       const fd = new URLSearchParams();
       fd.append("modo", "listarEventos");
@@ -734,11 +784,13 @@
           if (!ev || !ev.eventKey) return;
           if (!byKey.has(ev.eventKey)) byKey.set(ev.eventKey, ev);
         });
-        const events = [...byKey.values()];
+        const events = [...byKey.values()].filter((ev) => eventMatchesMonthFilter_(ev, monthFilter));
         if (!events.length) {
           const opt = document.createElement("option");
           opt.value = "";
-          opt.textContent = "No hay eventos guardados";
+          opt.textContent = monthFilter === "ALL"
+            ? "No hay eventos guardados"
+            : "No hay eventos para ese mes";
           lista.appendChild(opt);
           return;
         }
@@ -948,6 +1000,9 @@
     document.getElementById("buscarEventoTxt").addEventListener("input", () => {
       cargarListaEventos();
     });
+    document.getElementById("filtroMesEvento").addEventListener("change", () => {
+      cargarListaEventos();
+    });
     document.getElementById("soloUnDia").addEventListener("change", applySingleDayMode);
     function syncFechaFinConInicio() {
       const inicio = document.getElementById("fechaInicio").value;
@@ -962,11 +1017,8 @@
     applyMobileUiTweaks();
     checkBackendHealth();
     initMonthSelects();
+    initFiltroMesEventos();
     resetFormularioEvento();
   </script>
 </body>
 </html>
-
-
-
-
