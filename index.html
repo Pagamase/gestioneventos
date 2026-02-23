@@ -540,6 +540,11 @@
       const endMonth = /^\d{4}-\d{2}-\d{2}$/.test(end) ? end.slice(0, 7) : startMonth;
       return monthFilter >= startMonth && monthFilter <= endMonth;
     }
+    function formatIsoDateEs_(iso) {
+      const m = String(iso || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (!m) return String(iso || "");
+      return `${m[3]}-${m[2]}-${m[1]}`;
+    }
     function showModal(id) {
       lockBodyScroll();
       document.getElementById("formPrincipal").style.display = "none";
@@ -798,7 +803,9 @@
         events.forEach((ev) => {
           const opt = document.createElement("option");
           opt.value = ev.eventKey;
-          opt.textContent = `${ev.evento} | ${ev.fechaInicio} -> ${ev.fechaFin} (${ev.dias} dias)`;
+          const fechaInicioTxt = formatIsoDateEs_(ev.fechaInicio);
+          const fechaFinTxt = formatIsoDateEs_(ev.fechaFin);
+          opt.textContent = `${ev.evento} | ${fechaInicioTxt} -> ${fechaFinTxt} (${ev.dias} dias)`;
           lista.appendChild(opt);
         });
       } catch (err) {
@@ -1022,3 +1029,5 @@
   </script>
 </body>
 </html>
+
+
