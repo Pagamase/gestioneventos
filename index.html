@@ -188,10 +188,20 @@
 
     #enviandoMsg {
       display: none;
+      position: fixed;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
       text-align: center;
-      margin-top: 12px;
       color: var(--warn);
       font-weight: 600;
+      background: rgba(16, 22, 27, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 999px;
+      padding: 8px 14px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+      pointer-events: none;
     }
 
     #eventosLoadingMsg {
@@ -1029,5 +1039,3 @@
   </script>
 </body>
 </html>
-
-
