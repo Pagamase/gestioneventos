@@ -508,7 +508,7 @@
     function initFiltroMesEventos() {
       const select = document.getElementById("filtroMesEvento");
       if (!select) return;
-      const prev = select.value || "ALL";
+      const prev = select.value || "";
       select.innerHTML = "";
 
       const allOpt = document.createElement("option");
@@ -525,10 +525,16 @@
         select.appendChild(opt);
       });
 
-      if ([...select.options].some((o) => o.value === prev)) {
+      if (prev && [...select.options].some((o) => o.value === prev)) {
         select.value = prev;
       } else {
-        select.value = "ALL";
+        const now = new Date();
+        const currentIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+        if ([...select.options].some((o) => o.value === currentIso)) {
+          select.value = currentIso;
+        } else {
+          select.value = "ALL";
+        }
       }
     }
 
@@ -1022,6 +1028,7 @@
     });
     document.getElementById("soloUnDia").addEventListener("change", applySingleDayMode);
     function syncFechaFinConInicio() {
+      if (!document.getElementById("soloUnDia").checked) return;
       const inicio = document.getElementById("fechaInicio").value;
       if (!inicio) return;
       document.getElementById("fechaFin").value = inicio;

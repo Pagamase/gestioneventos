@@ -1,4 +1,4 @@
-var APP_VERSION = "event-workflow-2026-02-14-mobile-v4";
+var APP_VERSION = "event-workflow-2026-06-11-fixes-v5";
 
 var MONTH_NAMES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -775,7 +775,7 @@ function borrarEventoEnTodos_(calendars, noteData, titulo, fecha) {
       removed++;
     }
 
-    if (titulo) {
+    if (titulo && removed === 0) {
       removed += borrarPorTituloEnCalendario_(cal, titulo, fecha);
     }
   });
@@ -1238,7 +1238,7 @@ function toErrorMessage_(err) {
 }
 
 function extractConflictEventKey_(message) {
-  var m = String(message || "").match(/evento\s+([a-f0-9-]{8,})/i);
+  var m = String(message || "").match(/con evento\s+(\S+)/i);
   return m ? m[1] : "";
 }
 
