@@ -316,7 +316,7 @@
       <label class="single-day-check"><input type="checkbox" id="soloUnDia" /> Marcar solo un dia</label>
 
       <label for="tarifa">Tarifa</label>
-      <select id="tarifa" name="tarifa" required>
+      <select id="tarifa" name="tarifa" required onchange="onTarifaChange()">
         <option value="Ninguna">Ninguna</option>
         <option value="Tec.Madrid">Tec.Madrid</option>
         <option value="Tec.Finde">Tec.Finde</option>
@@ -343,44 +343,44 @@
       <label for="extras">Horas extras</label>
       <select id="extras" name="extras" required>
         <option value="No">No he hecho horas extras</option>
-        <option value="12 - Normal - Bolo">12 - Normal - Bolo</option>
-        <option value="13 - Normal - Bolo">13 - Normal - Bolo</option>
-        <option value="14 - Normal - Bolo">14 - Normal - Bolo</option>
-        <option value="15 - Normal - Bolo">15 - Normal - Bolo</option>
-        <option value="16 - Normal - Bolo">16 - Normal - Bolo</option>
-        <option value="12 - Op/JE - Bolo">12 - Op/JE - Bolo</option>
-        <option value="13 - Op/JE - Bolo">13 - Op/JE - Bolo</option>
-        <option value="14 - Op/JE - Bolo">14 - Op/JE - Bolo</option>
-        <option value="15 - Op/JE - Bolo">15 - Op/JE - Bolo</option>
-        <option value="16 - Op/JE - Bolo">16 - Op/JE - Bolo</option>
-        <option value="12 - Op/JE - GF">12 - Op/JE - GF</option>
-        <option value="13 - Op/JE - GF">13 - Op/JE - GF</option>
-        <option value="14 - Op/JE - GF">14 - Op/JE - GF</option>
-        <option value="15 - Op/JE - GF">15 - Op/JE - GF</option>
-        <option value="13 - JE - Directo">13 - JE - Directo</option>
-        <option value="14 - JE - Directo">14 - JE - Directo</option>
-        <option value="15 - JE - Directo">15 - JE - Directo</option>
-        <option value="16 - JE - Directo">16 - JE - Directo</option>
-        <option value="17 - JE - Directo">17 - JE - Directo</option>
-        <option value="18 - JE - Directo">18 - JE - Directo</option>
-        <option value="19 - JE - Directo">19 - JE - Directo</option>
-        <option value="20 - JE - Directo">20 - JE - Directo</option>
-        <option value="13 - Op - Directo">13 - Op - Directo</option>
-        <option value="14 - Op - Directo">14 - Op - Directo</option>
-        <option value="15 - Op - Directo">15 - Op - Directo</option>
-        <option value="16 - Op - Directo">16 - Op - Directo</option>
-        <option value="17 - Op - Directo">17 - Op - Directo</option>
-        <option value="18 - Op - Directo">18 - Op - Directo</option>
-        <option value="19 - Op - Directo">19 - Op - Directo</option>
-        <option value="20 - Op - Directo">20 - Op - Directo</option>
-        <option value="13 - Tec - Directo">13 - Tec - Directo</option>
-        <option value="14 - Tec - Directo">14 - Tec - Directo</option>
-        <option value="15 - Tec - Directo">15 - Tec - Directo</option>
-        <option value="16 - Tec - Directo">16 - Tec - Directo</option>
-        <option value="17 - Tec - Directo">17 - Tec - Directo</option>
-        <option value="18 - Tec - Directo">18 - Tec - Directo</option>
-        <option value="19 - Tec - Directo">19 - Tec - Directo</option>
-        <option value="20 - Tec - Directo">20 - Tec - Directo</option>
+        <option value="12 - Normal - Bolo" data-tipo="bolo">12 - Normal - Bolo</option>
+        <option value="13 - Normal - Bolo" data-tipo="bolo">13 - Normal - Bolo</option>
+        <option value="14 - Normal - Bolo" data-tipo="bolo">14 - Normal - Bolo</option>
+        <option value="15 - Normal - Bolo" data-tipo="bolo">15 - Normal - Bolo</option>
+        <option value="16 - Normal - Bolo" data-tipo="bolo">16 - Normal - Bolo</option>
+        <option value="12 - Op/JE - Bolo" data-tipo="bolo">12 - Op/JE - Bolo</option>
+        <option value="13 - Op/JE - Bolo" data-tipo="bolo">13 - Op/JE - Bolo</option>
+        <option value="14 - Op/JE - Bolo" data-tipo="bolo">14 - Op/JE - Bolo</option>
+        <option value="15 - Op/JE - Bolo" data-tipo="bolo">15 - Op/JE - Bolo</option>
+        <option value="16 - Op/JE - Bolo" data-tipo="bolo">16 - Op/JE - Bolo</option>
+        <option value="12 - Op/JE - GF" data-tipo="gf">12 - Op/JE - GF</option>
+        <option value="13 - Op/JE - GF" data-tipo="gf">13 - Op/JE - GF</option>
+        <option value="14 - Op/JE - GF" data-tipo="gf">14 - Op/JE - GF</option>
+        <option value="15 - Op/JE - GF" data-tipo="gf">15 - Op/JE - GF</option>
+        <option value="13 - JE - Directo" data-tipo="directo">13 - JE - Directo</option>
+        <option value="14 - JE - Directo" data-tipo="directo">14 - JE - Directo</option>
+        <option value="15 - JE - Directo" data-tipo="directo">15 - JE - Directo</option>
+        <option value="16 - JE - Directo" data-tipo="directo">16 - JE - Directo</option>
+        <option value="17 - JE - Directo" data-tipo="directo">17 - JE - Directo</option>
+        <option value="18 - JE - Directo" data-tipo="directo">18 - JE - Directo</option>
+        <option value="19 - JE - Directo" data-tipo="directo">19 - JE - Directo</option>
+        <option value="20 - JE - Directo" data-tipo="directo">20 - JE - Directo</option>
+        <option value="13 - Op - Directo" data-tipo="directo">13 - Op - Directo</option>
+        <option value="14 - Op - Directo" data-tipo="directo">14 - Op - Directo</option>
+        <option value="15 - Op - Directo" data-tipo="directo">15 - Op - Directo</option>
+        <option value="16 - Op - Directo" data-tipo="directo">16 - Op - Directo</option>
+        <option value="17 - Op - Directo" data-tipo="directo">17 - Op - Directo</option>
+        <option value="18 - Op - Directo" data-tipo="directo">18 - Op - Directo</option>
+        <option value="19 - Op - Directo" data-tipo="directo">19 - Op - Directo</option>
+        <option value="20 - Op - Directo" data-tipo="directo">20 - Op - Directo</option>
+        <option value="13 - Tec - Directo" data-tipo="directo">13 - Tec - Directo</option>
+        <option value="14 - Tec - Directo" data-tipo="directo">14 - Tec - Directo</option>
+        <option value="15 - Tec - Directo" data-tipo="directo">15 - Tec - Directo</option>
+        <option value="16 - Tec - Directo" data-tipo="directo">16 - Tec - Directo</option>
+        <option value="17 - Tec - Directo" data-tipo="directo">17 - Tec - Directo</option>
+        <option value="18 - Tec - Directo" data-tipo="directo">18 - Tec - Directo</option>
+        <option value="19 - Tec - Directo" data-tipo="directo">19 - Tec - Directo</option>
+        <option value="20 - Tec - Directo" data-tipo="directo">20 - Tec - Directo</option>
       </select>
 
       <div class="checks">
@@ -711,9 +711,32 @@
       document.getElementById("fechaFin").value = today;
       document.getElementById("soloUnDia").checked = true;
       applySingleDayMode();
-      document.getElementById("extras").value = "No";
       document.getElementById("tarifa").value = "Ninguna";
+      onTarifaChange();
       setModoEvento();
+    }
+
+    function tipoDesdeTarifa(tarifaValue) {
+      const v = String(tarifaValue || "");
+      if (v.includes("Directo")) return "directo";
+      if (v.includes("Gran Formato")) return "gf";
+      if (v.includes("Bolo")) return "bolo";
+      return "ninguno";
+    }
+
+    function aplicarFiltroExtras(tipo) {
+      const select = document.getElementById("extras");
+      [...select.options].forEach((opt) => {
+        const optTipo = opt.dataset.tipo || "ninguno";
+        const visible = optTipo === "ninguno" || optTipo === tipo;
+        opt.hidden = !visible;
+        opt.disabled = !visible;
+      });
+    }
+
+    function onTarifaChange() {
+      aplicarFiltroExtras(tipoDesdeTarifa(document.getElementById("tarifa").value));
+      document.getElementById("extras").value = "No";
     }
 
     function updateExceptionsSummary() {
@@ -871,7 +894,15 @@
         document.getElementById("soloUnDia").checked = !!ev.fechaInicio && ev.fechaInicio === ev.fechaFin;
         applySingleDayMode();
         document.getElementById("tarifa").value = ev.tarifa || "Ninguna";
-        document.getElementById("extras").value = ev.extras || "No";
+        aplicarFiltroExtras(tipoDesdeTarifa(ev.tarifa || "Ninguna"));
+        const extrasSel = document.getElementById("extras");
+        const extrasWanted = ev.extras || "No";
+        const extrasOpt = [...extrasSel.options].find((o) => o.value === extrasWanted);
+        if (extrasOpt) {
+          extrasOpt.hidden = false;
+          extrasOpt.disabled = false;
+        }
+        extrasSel.value = extrasWanted;
         document.getElementById("mediaJornada").checked = !!ev.mediaJornada;
         document.getElementById("jefeOperador").checked = !!ev.jefeOperador;
         document.getElementById("dobleJornadaReal").checked = !!ev.dobleJornada;
