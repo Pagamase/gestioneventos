@@ -22,6 +22,11 @@ function doPost(e) {
     var modo = String(params.modo || "guardar");
     var calendarsCache = null;
 
+    var telegramUpdate = parseTelegramUpdate_(e);
+    if (telegramUpdate) {
+      return handleTelegramUpdate_(ss, props, telegramUpdate);
+    }
+
     function requireCalendars_() {
       if (calendarsCache === null) {
         calendarsCache = resolveCalendars_(props);
