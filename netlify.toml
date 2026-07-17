@@ -1,6 +1,9 @@
 [build]
   publish = "."
 
+[functions]
+  directory = "netlify/functions"
+
 [context.production]
   [context.production.environment]
     SITE_ENV = "production"
