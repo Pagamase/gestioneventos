@@ -11,6 +11,11 @@ var TARIFAS_DISPONIBLES = [
 
 var DIAS_SEMANA_ = ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo"];
 
+var MENSAJE_PIDE_DIAS_ =
+  '¿Qué días tienes bolo? Puedes darme fechas concretas (ej: "15 de agosto", ' +
+  '"15/08 al 17/08") o días de la semana que viene (ej: "lunes a miércoles"). ' +
+  'Si no tienes nada, responde "no".';
+
 // ---- Trigger semanal (proactivo) ----
 
 function enviarPreguntaCuadrante() {
@@ -21,10 +26,7 @@ function enviarPreguntaCuadrante() {
     return;
   }
   saveTelegramState_(props, telegramStateKey_(chatId), { step: "awaiting_days" });
-  sendTelegramMessage_(props, chatId,
-    '¿Tienes el cuadrante de la semana que viene? Dime los días que tienes bolo ' +
-    '(ej: "lunes a miércoles" o "lunes, martes y viernes"). Si no tienes nada, responde "no".'
-  );
+  sendTelegramMessage_(props, chatId, MENSAJE_PIDE_DIAS_);
 }
 
 // Ejecutar una vez a mano desde el editor de Apps Script para instalar el trigger.
@@ -71,9 +73,7 @@ function handleTelegramUpdate_(ss, props, update) {
   if (/^\/(start|cuadrante)\b/i.test(text)) {
     var freshState = { step: "awaiting_days" };
     saveTelegramState_(props, stateKey, freshState);
-    sendTelegramMessage_(props, chatId,
-      '¿Qué días tienes bolo? (ej: "lunes a miércoles" o "lunes, martes y viernes"). Si no tienes nada, responde "no".'
-    );
+    sendTelegramMessage_(props, chatId, MENSAJE_PIDE_DIAS_);
     return json_({ ok: true });
   }
 
@@ -104,10 +104,10 @@ function handleAwaitingDias_(props, chatId, stateKey, state, text) {
     return;
   }
 
-  var dias = parseDiasSemana_(text);
+  var dias = parseFechas_(text);
   if (!dias || dias.length === 0) {
     sendTelegramMessage_(props, chatId,
-      'No he entendido los días. Prueba con algo como "lunes a miércoles" o "lunes, martes y viernes".'
+      'No he entendido esas fechas. Prueba con algo como "15 de agosto", "15/08 al 17/08" o "lunes a miércoles".'
     );
     return;
   }
@@ -197,48 +197,117 @@ function resolveTarifaFromText_(text) {
   return null;
 }
 
-// ---- Parseo de días en español ----
+// ---- Parseo de fechas en español ----
+// Acepta, por segmento separado por comas o " y ": fechas concretas
+// ("15 de agosto", "15 al 17 de agosto", "15/08", "15/08 al 17/08[/2026]")
+// o nombres de días de la semana ("lunes", "lunes a miércoles"), que se
+// resuelven sobre la semana que viene.
 
-function parseDiasSemana_(text) {
+function parseFechas_(text) {
   var norm = normalizeSimple_(text).replace(/\by\b/g, ",");
   var segments = norm.split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+  if (!segments.length) return null;
 
-  var indices = {};
-  var found = false;
+  var fechas = [];
+  for (var i = 0; i < segments.length; i++) {
+    var parsed = parseSegmentoFecha_(segments[i]);
+    if (!parsed || !parsed.length) return null;
+    fechas = fechas.concat(parsed);
+  }
 
-  segments.forEach(function (seg) {
-    var rangeMatch = seg.match(/^(?:de\s+)?(\S+)\s+a\s+(\S+)$/);
-    if (rangeMatch) {
-      var startIdx = diaIndex_(rangeMatch[1]);
-      var endIdx = diaIndex_(rangeMatch[2]);
-      if (startIdx !== -1 && endIdx !== -1) {
-        var i = startIdx;
-        while (true) {
-          indices[i] = true;
-          found = true;
-          if (i === endIdx) break;
-          i = (i + 1) % 7;
-        }
-        return;
-      }
+  var seen = {};
+  var out = [];
+  fechas.forEach(function (f) {
+    var key = toIsoDate_(f);
+    if (!seen[key]) {
+      seen[key] = true;
+      out.push(f);
     }
-
-    seg.split(/\s+/).forEach(function (token) {
-      var idx = diaIndex_(token);
-      if (idx !== -1) {
-        indices[idx] = true;
-        found = true;
-      }
-    });
   });
+  out.sort(function (a, b) { return a.getTime() - b.getTime(); });
+  return out;
+}
 
-  if (!found) return null;
+function parseSegmentoFecha_(seg) {
+  // "15/08[/2026]" o "15/08[/2026] al 17/08[/2026]"
+  var slash = seg.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?(?:\s+al\s+(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?)?$/);
+  if (slash) {
+    var d1 = construirFechaSlash_(slash[1], slash[2], slash[3]);
+    if (!d1) return null;
+    if (!slash[4]) return [d1];
+    var d2 = construirFechaSlash_(slash[4], slash[5], slash[6] || slash[3]);
+    if (!d2 || d2.getTime() < d1.getTime()) return null;
+    return expandDateRange_(d1, d2);
+  }
 
-  var monday = proximoLunes_();
-  return Object.keys(indices)
-    .map(function (k) { return parseInt(k, 10); })
-    .sort(function (a, b) { return a - b; })
-    .map(function (idx) { return addDays_(monday, idx); });
+  // "15 de agosto[ de 2026]" o "15 al 17 de agosto[ de 2026]"
+  var conMes = seg.match(/^(\d{1,2})(?:\s*(?:al|-)\s*(\d{1,2}))?\s+de\s+([a-z]+)(?:\s+(?:de\s+)?(\d{4}))?$/);
+  if (conMes) {
+    var mes = monthIndexFromText_(conMes[3]);
+    if (mes < 0) return null;
+    var inicio = construirFechaConMes_(conMes[1], mes, conMes[4]);
+    if (!inicio) return null;
+    if (!conMes[2]) return [inicio];
+    var fin = construirFechaConMes_(conMes[2], mes, conMes[4]);
+    if (!fin || fin.getTime() < inicio.getTime()) return null;
+    return expandDateRange_(inicio, fin);
+  }
+
+  return parseSegmentoDiaSemana_(seg);
+}
+
+function parseSegmentoDiaSemana_(seg) {
+  var rangeMatch = seg.match(/^(?:de\s+)?(\S+)\s+a\s+(\S+)$/);
+  if (rangeMatch) {
+    var startIdx = diaIndex_(rangeMatch[1]);
+    var endIdx = diaIndex_(rangeMatch[2]);
+    if (startIdx === -1 || endIdx === -1 || endIdx < startIdx) return null;
+    var monday = proximoLunes_();
+    return expandDateRange_(addDays_(monday, startIdx), addDays_(monday, endIdx));
+  }
+
+  var monday2 = proximoLunes_();
+  var out = [];
+  seg.split(/\s+/).forEach(function (token) {
+    var idx = diaIndex_(token);
+    if (idx !== -1) out.push(addDays_(monday2, idx));
+  });
+  return out.length ? out : null;
+}
+
+function construirFechaSlash_(diaStr, mesStr, anioStr) {
+  var dia = parseInt(diaStr, 10);
+  var mes = parseInt(mesStr, 10) - 1;
+  if (isNaN(dia) || isNaN(mes) || mes < 0 || mes > 11) return null;
+  var anioExplicito = !!anioStr;
+  var anio = anioExplicito ? normalizarAnio_(anioStr) : new Date().getFullYear();
+  var d = new Date(anio, mes, dia);
+  if (d.getMonth() !== mes || d.getDate() !== dia) return null;
+  return anioExplicito ? d : ajustarAnioFuturo_(d);
+}
+
+function construirFechaConMes_(diaStr, mesIndex, anioStr) {
+  var dia = parseInt(diaStr, 10);
+  if (isNaN(dia)) return null;
+  var anioExplicito = !!anioStr;
+  var anio = anioExplicito ? parseInt(anioStr, 10) : new Date().getFullYear();
+  var d = new Date(anio, mesIndex, dia);
+  if (d.getMonth() !== mesIndex || d.getDate() !== dia) return null;
+  return anioExplicito ? d : ajustarAnioFuturo_(d);
+}
+
+function normalizarAnio_(anioStr) {
+  var anio = parseInt(anioStr, 10);
+  return anio < 100 ? anio + 2000 : anio;
+}
+
+function ajustarAnioFuturo_(d) {
+  var hoy = new Date();
+  var hoySinHora = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+  if (d.getTime() < hoySinHora.getTime()) {
+    return new Date(d.getFullYear() + 1, d.getMonth(), d.getDate());
+  }
+  return d;
 }
 
 function diaIndex_(token) {
