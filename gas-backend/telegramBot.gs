@@ -250,8 +250,10 @@ function handleEditarElegir_(props, ss, chatId, stateKey, state, text) {
 
   var rango = evento.fechaInicio === evento.fechaFin ? evento.fechaInicio : (evento.fechaInicio + " a " + evento.fechaFin);
   sendTelegramMessage_(props, chatId,
-    'Editando "' + evento.evento + '" (' + rango + '). Tarifa: ' + evento.tarifa + '. Extras: ' + (evento.extras || "No") + '.\n' +
-    '¿Qué quieres cambiar? Responde "extras", "tarifa" o "nombre".'
+    'Editando "' + evento.evento + '" (' + rango + '). Tarifa: ' + evento.tarifa + '. Extras: ' + (evento.extras || "No") +
+    '. Media jornada: ' + siNo_(evento.mediaJornada) + '. Jefe+Operador: ' + siNo_(evento.jefeOperador) +
+    '. Doble jornada: ' + siNo_(evento.dobleJornada) + '.\n' +
+    '¿Qué quieres cambiar? Responde "extras", "tarifa", "nombre", "media jornada", "jefe operador" o "doble jornada".'
   );
 }
 
@@ -279,8 +281,40 @@ function handleEditarCampo_(props, chatId, stateKey, state, text) {
     sendTelegramMessage_(props, chatId, "¿Nuevo nombre del evento?");
     return;
   }
+  if (campo === "media jornada" || campo === "mediajornada") {
+    state.campo = "mediaJornada";
+    state.step = "editar_valor";
+    saveTelegramState_(props, stateKey, state);
+    sendTelegramMessage_(props, chatId, "¿Media jornada? Responde sí o no.");
+    return;
+  }
+  if (campo === "jefe operador" || campo === "jefe y operador" || campo === "jefeoperador" || campo === "jefe+operador") {
+    state.campo = "jefeOperador";
+    state.step = "editar_valor";
+    saveTelegramState_(props, stateKey, state);
+    sendTelegramMessage_(props, chatId, "¿Jefe + Operador? Responde sí o no.");
+    return;
+  }
+  if (campo === "doble jornada" || campo === "doblejornada") {
+    state.campo = "Doble jornada";
+    state.step = "editar_valor";
+    saveTelegramState_(props, stateKey, state);
+    sendTelegramMessage_(props, chatId, "¿Doble jornada? Responde sí o no.");
+    return;
+  }
 
-  sendTelegramMessage_(props, chatId, 'No entendido. Responde "extras", "tarifa" o "nombre".');
+  sendTelegramMessage_(props, chatId, 'No entendido. Responde "extras", "tarifa", "nombre", "media jornada", "jefe operador" o "doble jornada".');
+}
+
+function siNo_(valor) {
+  return valor ? "sí" : "no";
+}
+
+function resolveSiNo_(text) {
+  var norm = normalizeSimple_(text);
+  if (["si", "s", "true", "activar", "on", "1", "yes"].indexOf(norm) !== -1) return true;
+  if (["no", "n", "false", "desactivar", "off", "0"].indexOf(norm) !== -1) return false;
+  return null;
 }
 
 function handleEditarValor_(props, ss, chatId, stateKey, state, text) {
@@ -305,6 +339,13 @@ function handleEditarValor_(props, ss, chatId, stateKey, state, text) {
       sendTelegramMessage_(props, chatId, "Necesito un nombre.");
       return;
     }
+  } else if (campo === "mediaJornada" || campo === "jefeOperador" || campo === "Doble jornada") {
+    var boolValor = resolveSiNo_(text);
+    if (boolValor === null) {
+      sendTelegramMessage_(props, chatId, "Responde sí o no.");
+      return;
+    }
+    valor = boolValor;
   } else {
     props.deleteProperty(stateKey);
     return;
