@@ -279,35 +279,24 @@ function construirFechaSlash_(diaStr, mesStr, anioStr) {
   var dia = parseInt(diaStr, 10);
   var mes = parseInt(mesStr, 10) - 1;
   if (isNaN(dia) || isNaN(mes) || mes < 0 || mes > 11) return null;
-  var anioExplicito = !!anioStr;
-  var anio = anioExplicito ? normalizarAnio_(anioStr) : new Date().getFullYear();
+  var anio = anioStr ? normalizarAnio_(anioStr) : new Date().getFullYear();
   var d = new Date(anio, mes, dia);
   if (d.getMonth() !== mes || d.getDate() !== dia) return null;
-  return anioExplicito ? d : ajustarAnioFuturo_(d);
+  return d;
 }
 
 function construirFechaConMes_(diaStr, mesIndex, anioStr) {
   var dia = parseInt(diaStr, 10);
   if (isNaN(dia)) return null;
-  var anioExplicito = !!anioStr;
-  var anio = anioExplicito ? parseInt(anioStr, 10) : new Date().getFullYear();
+  var anio = anioStr ? parseInt(anioStr, 10) : new Date().getFullYear();
   var d = new Date(anio, mesIndex, dia);
   if (d.getMonth() !== mesIndex || d.getDate() !== dia) return null;
-  return anioExplicito ? d : ajustarAnioFuturo_(d);
+  return d;
 }
 
 function normalizarAnio_(anioStr) {
   var anio = parseInt(anioStr, 10);
   return anio < 100 ? anio + 2000 : anio;
-}
-
-function ajustarAnioFuturo_(d) {
-  var hoy = new Date();
-  var hoySinHora = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
-  if (d.getTime() < hoySinHora.getTime()) {
-    return new Date(d.getFullYear() + 1, d.getMonth(), d.getDate());
-  }
-  return d;
 }
 
 function diaIndex_(token) {
