@@ -14,7 +14,102 @@ var DIAS_SEMANA_ = ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado
 var MENSAJE_PIDE_DIAS_ =
   '¿Qué días tienes bolo? Puedes darme fechas concretas (ej: "15 de agosto", ' +
   '"15/08 al 17/08") o días de la semana que viene (ej: "lunes a miércoles"). ' +
-  'Si no tienes nada, responde "no".';
+  'Si no tienes nada, responde "no". (Para editar un bolo ya guardado, usa /editar)';
+
+// Misma lista y misma lógica de filtrado por tarifa que index.html (extras).
+var EXTRAS_OPCIONES_ = [
+  { valor: "No" },
+  { valor: "12 - Normal - Bolo", rol: "normal", tipo: "bolo" },
+  { valor: "13 - Normal - Bolo", rol: "normal", tipo: "bolo" },
+  { valor: "14 - Normal - Bolo", rol: "normal", tipo: "bolo" },
+  { valor: "15 - Normal - Bolo", rol: "normal", tipo: "bolo" },
+  { valor: "16 - Normal - Bolo", rol: "normal", tipo: "bolo" },
+  { valor: "12 - Op/JE - Bolo", rol: "opje", tipo: "bolo" },
+  { valor: "13 - Op/JE - Bolo", rol: "opje", tipo: "bolo" },
+  { valor: "14 - Op/JE - Bolo", rol: "opje", tipo: "bolo" },
+  { valor: "15 - Op/JE - Bolo", rol: "opje", tipo: "bolo" },
+  { valor: "16 - Op/JE - Bolo", rol: "opje", tipo: "bolo" },
+  { valor: "12 - Op/JE - GF", rol: "opje", tipo: "gf" },
+  { valor: "13 - Op/JE - GF", rol: "opje", tipo: "gf" },
+  { valor: "14 - Op/JE - GF", rol: "opje", tipo: "gf" },
+  { valor: "15 - Op/JE - GF", rol: "opje", tipo: "gf" },
+  { valor: "13 - JE - Directo", rol: "je", tipo: "directo" },
+  { valor: "14 - JE - Directo", rol: "je", tipo: "directo" },
+  { valor: "15 - JE - Directo", rol: "je", tipo: "directo" },
+  { valor: "16 - JE - Directo", rol: "je", tipo: "directo" },
+  { valor: "17 - JE - Directo", rol: "je", tipo: "directo" },
+  { valor: "18 - JE - Directo", rol: "je", tipo: "directo" },
+  { valor: "19 - JE - Directo", rol: "je", tipo: "directo" },
+  { valor: "20 - JE - Directo", rol: "je", tipo: "directo" },
+  { valor: "13 - Op - Directo", rol: "op", tipo: "directo" },
+  { valor: "14 - Op - Directo", rol: "op", tipo: "directo" },
+  { valor: "15 - Op - Directo", rol: "op", tipo: "directo" },
+  { valor: "16 - Op - Directo", rol: "op", tipo: "directo" },
+  { valor: "17 - Op - Directo", rol: "op", tipo: "directo" },
+  { valor: "18 - Op - Directo", rol: "op", tipo: "directo" },
+  { valor: "19 - Op - Directo", rol: "op", tipo: "directo" },
+  { valor: "20 - Op - Directo", rol: "op", tipo: "directo" },
+  { valor: "13 - Tec - Directo", rol: "tec", tipo: "directo" },
+  { valor: "14 - Tec - Directo", rol: "tec", tipo: "directo" },
+  { valor: "15 - Tec - Directo", rol: "tec", tipo: "directo" },
+  { valor: "16 - Tec - Directo", rol: "tec", tipo: "directo" },
+  { valor: "17 - Tec - Directo", rol: "tec", tipo: "directo" },
+  { valor: "18 - Tec - Directo", rol: "tec", tipo: "directo" },
+  { valor: "19 - Tec - Directo", rol: "tec", tipo: "directo" },
+  { valor: "20 - Tec - Directo", rol: "tec", tipo: "directo" }
+];
+
+function rolDesdeTarifa_(tarifa) {
+  var v = String(tarifa || "");
+  if (v.indexOf("Tec.") !== -1 || v.indexOf("Tec ") !== -1) return "tec";
+  if (v.indexOf("JE") === 0) return "je";
+  if (v.indexOf("Op") === 0) return "op";
+  return "ninguno";
+}
+
+function tipoTrabajoDesdeTarifa_(tarifa) {
+  var v = String(tarifa || "");
+  if (v.indexOf("Directo") !== -1) return "directo";
+  if (v.indexOf("Gran Formato") !== -1) return "gf";
+  if (v.indexOf("Bolo") !== -1) return "bolo";
+  return "ninguno";
+}
+
+function extrasDisponiblesParaTarifa_(tarifa) {
+  var rol = rolDesdeTarifa_(tarifa);
+  var tipo = tipoTrabajoDesdeTarifa_(tarifa);
+  return EXTRAS_OPCIONES_.filter(function (opt) {
+    if (!opt.rol) return true; // "No"
+    if (rol === "tec") return opt.rol === "normal" || opt.rol === "tec";
+    if ((rol === "op" || rol === "je") && (tipo === "bolo" || tipo === "gf")) {
+      return opt.rol === "opje" && opt.tipo === tipo;
+    }
+    if ((rol === "op" || rol === "je") && tipo === "directo") {
+      return opt.rol === rol && opt.tipo === "directo";
+    }
+    return false;
+  });
+}
+
+function buildExtrasMenu_(tarifa) {
+  var opciones = extrasDisponiblesParaTarifa_(tarifa);
+  var lines = opciones.map(function (o, i) { return (i + 1) + ". " + o.valor; });
+  return "Elige las horas extra (responde con el número):\n" + lines.join("\n");
+}
+
+function resolveExtraFromText_(tarifa, text) {
+  var opciones = extrasDisponiblesParaTarifa_(tarifa);
+  var trimmed = String(text || "").trim();
+  var num = parseInt(trimmed, 10);
+  if (!isNaN(num) && num >= 1 && num <= opciones.length) {
+    return opciones[num - 1].valor;
+  }
+  var norm = normalizeSimple_(trimmed);
+  for (var i = 0; i < opciones.length; i++) {
+    if (normalizeSimple_(opciones[i].valor) === norm) return opciones[i].valor;
+  }
+  return null;
+}
 
 // ---- Trigger semanal (proactivo) ----
 
@@ -83,9 +178,23 @@ function handleTelegramUpdate_(ss, props, update) {
     return json_({ ok: true });
   }
 
+  if (/^\/(editar|buscar)\b/i.test(text)) {
+    saveTelegramState_(props, stateKey, { step: "editar_buscar" });
+    sendTelegramMessage_(props, chatId, '¿Qué evento quieres editar? Dime parte del nombre (ej: "Netflix").');
+    return json_({ ok: true });
+  }
+
   var state = readTelegramState_(props, stateKey) || { step: "awaiting_days" };
 
-  if (state.step === "awaiting_evento") {
+  if (state.step === "editar_buscar") {
+    handleEditarBuscar_(props, ss, chatId, stateKey, state, text);
+  } else if (state.step === "editar_elegir") {
+    handleEditarElegir_(props, ss, chatId, stateKey, state, text);
+  } else if (state.step === "editar_campo") {
+    handleEditarCampo_(props, chatId, stateKey, state, text);
+  } else if (state.step === "editar_valor") {
+    handleEditarValor_(props, ss, chatId, stateKey, state, text);
+  } else if (state.step === "awaiting_evento") {
     handleAwaitingEvento_(props, chatId, stateKey, state, text);
   } else if (state.step === "awaiting_tarifa") {
     handleAwaitingTarifa_(props, ss, chatId, stateKey, state, text);
@@ -94,6 +203,152 @@ function handleTelegramUpdate_(ss, props, update) {
   }
 
   return json_({ ok: true });
+}
+
+// ---- Edición de un evento ya guardado ----
+
+function handleEditarBuscar_(props, ss, chatId, stateKey, state, text) {
+  var query = String(text || "").trim();
+  var eventos = buscarEventos_(ss, query).slice(0, 10);
+  if (!eventos.length) {
+    sendTelegramMessage_(props, chatId, 'No he encontrado ningún evento con "' + query + '". Prueba con otro texto, o /cancelar.');
+    return;
+  }
+
+  state.opciones = eventos.map(function (ev) {
+    return { eventKey: ev.eventKey, evento: ev.evento, fechaInicio: ev.fechaInicio, fechaFin: ev.fechaFin };
+  });
+  state.step = "editar_elegir";
+  saveTelegramState_(props, stateKey, state);
+
+  var lines = state.opciones.map(function (o, i) {
+    var rango = o.fechaInicio === o.fechaFin ? o.fechaInicio : (o.fechaInicio + " a " + o.fechaFin);
+    return (i + 1) + ". " + o.evento + " (" + rango + ")";
+  });
+  sendTelegramMessage_(props, chatId, "Elige el evento (responde con el número):\n" + lines.join("\n"));
+}
+
+function handleEditarElegir_(props, ss, chatId, stateKey, state, text) {
+  var opciones = state.opciones || [];
+  var num = parseInt(String(text || "").trim(), 10);
+  if (isNaN(num) || num < 1 || num > opciones.length) {
+    sendTelegramMessage_(props, chatId, "Responde con el número de la lista.");
+    return;
+  }
+
+  var evento = obtenerEvento_(ss, opciones[num - 1].eventKey);
+  if (!evento) {
+    props.deleteProperty(stateKey);
+    sendTelegramMessage_(props, chatId, "No he podido recuperar ese evento. Prueba de nuevo con /editar.");
+    return;
+  }
+
+  state.eventKey = evento.eventKey;
+  state.eventoActual = evento;
+  state.step = "editar_campo";
+  saveTelegramState_(props, stateKey, state);
+
+  var rango = evento.fechaInicio === evento.fechaFin ? evento.fechaInicio : (evento.fechaInicio + " a " + evento.fechaFin);
+  sendTelegramMessage_(props, chatId,
+    'Editando "' + evento.evento + '" (' + rango + '). Tarifa: ' + evento.tarifa + '. Extras: ' + (evento.extras || "No") + '.\n' +
+    '¿Qué quieres cambiar? Responde "extras", "tarifa" o "nombre".'
+  );
+}
+
+function handleEditarCampo_(props, chatId, stateKey, state, text) {
+  var campo = normalizeSimple_(text);
+
+  if (campo === "extras") {
+    state.campo = "extras";
+    state.step = "editar_valor";
+    saveTelegramState_(props, stateKey, state);
+    sendTelegramMessage_(props, chatId, buildExtrasMenu_(state.eventoActual.tarifa));
+    return;
+  }
+  if (campo === "tarifa") {
+    state.campo = "tarifa";
+    state.step = "editar_valor";
+    saveTelegramState_(props, stateKey, state);
+    sendTelegramMessage_(props, chatId, buildTarifaMenu_());
+    return;
+  }
+  if (campo === "nombre") {
+    state.campo = "evento";
+    state.step = "editar_valor";
+    saveTelegramState_(props, stateKey, state);
+    sendTelegramMessage_(props, chatId, "¿Nuevo nombre del evento?");
+    return;
+  }
+
+  sendTelegramMessage_(props, chatId, 'No entendido. Responde "extras", "tarifa" o "nombre".');
+}
+
+function handleEditarValor_(props, ss, chatId, stateKey, state, text) {
+  var campo = state.campo;
+  var valor;
+
+  if (campo === "extras") {
+    valor = resolveExtraFromText_(state.eventoActual.tarifa, text);
+    if (!valor) {
+      sendTelegramMessage_(props, chatId, "No he reconocido esa opción.\n" + buildExtrasMenu_(state.eventoActual.tarifa));
+      return;
+    }
+  } else if (campo === "tarifa") {
+    valor = resolveTarifaFromText_(text);
+    if (!valor) {
+      sendTelegramMessage_(props, chatId, "No he reconocido esa tarifa.\n" + buildTarifaMenu_());
+      return;
+    }
+  } else if (campo === "evento") {
+    valor = String(text || "").trim();
+    if (!valor) {
+      sendTelegramMessage_(props, chatId, "Necesito un nombre.");
+      return;
+    }
+  } else {
+    props.deleteProperty(stateKey);
+    return;
+  }
+
+  var calendars = resolveCalendars_(props);
+  if (calendars.length === 0) {
+    props.deleteProperty(stateKey);
+    sendTelegramMessage_(props, chatId, "⚠️ No hay calendarios configurados en Script Properties (CALENDAR_ID_1 / CALENDAR_ID_2).");
+    return;
+  }
+
+  var params = { eventKey: state.eventKey };
+  params[campo] = valor;
+
+  var resultado;
+  try {
+    resultado = handleActualizarEvento_(ss, calendars, params);
+  } catch (err) {
+    props.deleteProperty(stateKey);
+    sendTelegramMessage_(props, chatId, "⚠️ No se pudo actualizar: " + toErrorMessage_(err));
+    return;
+  }
+
+  props.deleteProperty(stateKey);
+  var data = JSON.parse(resultado.getContent());
+  if (data && data.error) {
+    sendTelegramMessage_(props, chatId, "⚠️ No se pudo actualizar: " + data.error);
+    return;
+  }
+  sendTelegramMessage_(props, chatId, "✅ Actualizado.");
+}
+
+function buscarEventos_(ss, query) {
+  var output = handleListarEventos_(ss, { q: query });
+  var data = JSON.parse(output.getContent());
+  return (data && data.events) || [];
+}
+
+function obtenerEvento_(ss, eventKey) {
+  var output = handleObtenerEvento_(ss, { eventKey: eventKey });
+  var data = JSON.parse(output.getContent());
+  if (!data || data.error) return null;
+  return data.event;
 }
 
 function handleAwaitingDias_(props, chatId, stateKey, state, text) {
