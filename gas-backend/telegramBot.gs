@@ -13,7 +13,8 @@ var DIAS_SEMANA_ = ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado
 
 var MENSAJE_PIDE_DIAS_ =
   '¿Qué días tienes bolo? Puedes darme fechas concretas (ej: "15 de agosto", ' +
-  '"15/08 al 17/08") o días de la semana que viene (ej: "lunes a miércoles"). ' +
+  '"15/08 al 17/08", o "15 de agosto al 5 de septiembre" si dura varias semanas) ' +
+  'o días de la semana que viene (ej: "lunes a miércoles"). ' +
   'Si no tienes nada, responde "no". (Para editar un bolo ya guardado, usa /editar)';
 
 // Misma lista y misma lógica de filtrado por tarifa que index.html (extras).
@@ -486,7 +487,8 @@ function handleAwaitingDias_(props, chatId, stateKey, state, text) {
   var dias = parseFechas_(text);
   if (!dias || dias.length === 0) {
     sendTelegramMessage_(props, chatId,
-      'No he entendido esas fechas. Prueba con algo como "15 de agosto", "15/08 al 17/08" o "lunes a miércoles".'
+      'No he entendido esas fechas. Prueba con algo como "15 de agosto", "15/08 al 17/08", ' +
+      '"15 de agosto al 5 de septiembre" o "lunes a miércoles".'
     );
     return;
   }
@@ -617,6 +619,18 @@ function parseSegmentoFecha_(seg) {
     var d2 = construirFechaSlash_(slash[4], slash[5], slash[6] || slash[3]);
     if (!d2 || d2.getTime() < d1.getTime()) return null;
     return expandDateRange_(d1, d2);
+  }
+
+  // "15 de agosto al 5 de septiembre[ de 2026]" (rango que cruza de mes)
+  var dosMeses = seg.match(/^(\d{1,2})\s+de\s+([a-z]+)(?:\s+de\s+(\d{4}))?\s+al\s+(\d{1,2})\s+de\s+([a-z]+)(?:\s+de\s+(\d{4}))?$/);
+  if (dosMeses) {
+    var mesInicio = monthIndexFromText_(dosMeses[2]);
+    var mesFin = monthIndexFromText_(dosMeses[5]);
+    if (mesInicio < 0 || mesFin < 0) return null;
+    var inicioDosMeses = construirFechaConMes_(dosMeses[1], mesInicio, dosMeses[3]);
+    var finDosMeses = construirFechaConMes_(dosMeses[4], mesFin, dosMeses[6] || dosMeses[3]);
+    if (!inicioDosMeses || !finDosMeses || finDosMeses.getTime() < inicioDosMeses.getTime()) return null;
+    return expandDateRange_(inicioDosMeses, finDosMeses);
   }
 
   // "15 de agosto[ de 2026]" o "15 al 17 de agosto[ de 2026]"
@@ -823,9 +837,13 @@ function tecladoEventos_(opciones) {
 }
 
 function tecladoDia_(dias) {
-  var botones = [{ text: "Todos los días", data: "todos" }].concat(
-    (dias || []).map(function (iso) { return { text: iso, data: iso }; })
-  );
+  dias = dias || [];
+  var botones = [{ text: "Todos los días", data: "todos" }];
+  // Si el evento dura muchas semanas, listar un botón por día sería enorme:
+  // se deja solo el botón "todos" y el usuario escribe la fecha a mano.
+  if (dias.length <= 20) {
+    botones = botones.concat(dias.map(function (iso) { return { text: iso, data: iso }; }));
+  }
   return teclado_(botones, 1);
 }
 
