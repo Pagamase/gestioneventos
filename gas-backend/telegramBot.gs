@@ -192,6 +192,8 @@ function handleTelegramUpdate_(ss, props, update) {
     handleEditarElegir_(props, ss, chatId, stateKey, state, text);
   } else if (state.step === "editar_campo") {
     handleEditarCampo_(props, chatId, stateKey, state, text);
+  } else if (state.step === "editar_dia") {
+    handleEditarDia_(props, chatId, stateKey, state, text);
   } else if (state.step === "editar_valor") {
     handleEditarValor_(props, ss, chatId, stateKey, state, text);
   } else if (state.step === "awaiting_evento") {
@@ -257,14 +259,16 @@ function handleEditarElegir_(props, ss, chatId, stateKey, state, text) {
   );
 }
 
+// Campos que viven en una celda por día (columna en collectAllEventRows_) y por
+// tanto se pueden cambiar solo para un día del evento, no para el rango entero.
+var CAMPOS_POR_DIA_ = { extras: 6, mediaJornada: 7, jefeOperador: 8 };
+CAMPOS_POR_DIA_["Doble jornada"] = 9;
+
 function handleEditarCampo_(props, chatId, stateKey, state, text) {
   var campo = normalizeSimple_(text);
 
   if (campo === "extras") {
-    state.campo = "extras";
-    state.step = "editar_valor";
-    saveTelegramState_(props, stateKey, state);
-    sendTelegramMessage_(props, chatId, buildExtrasMenu_(state.eventoActual.tarifa));
+    iniciarEdicionCampoConDia_(props, chatId, stateKey, state, "extras", buildExtrasMenu_(state.eventoActual.tarifa));
     return;
   }
   if (campo === "tarifa") {
@@ -282,28 +286,70 @@ function handleEditarCampo_(props, chatId, stateKey, state, text) {
     return;
   }
   if (campo === "media jornada" || campo === "mediajornada") {
-    state.campo = "mediaJornada";
-    state.step = "editar_valor";
-    saveTelegramState_(props, stateKey, state);
-    sendTelegramMessage_(props, chatId, "¿Media jornada? Responde sí o no.");
+    iniciarEdicionCampoConDia_(props, chatId, stateKey, state, "mediaJornada", "¿Media jornada? Responde sí o no.");
     return;
   }
   if (campo === "jefe operador" || campo === "jefe y operador" || campo === "jefeoperador" || campo === "jefe+operador") {
-    state.campo = "jefeOperador";
-    state.step = "editar_valor";
-    saveTelegramState_(props, stateKey, state);
-    sendTelegramMessage_(props, chatId, "¿Jefe + Operador? Responde sí o no.");
+    iniciarEdicionCampoConDia_(props, chatId, stateKey, state, "jefeOperador", "¿Jefe + Operador? Responde sí o no.");
     return;
   }
   if (campo === "doble jornada" || campo === "doblejornada") {
-    state.campo = "Doble jornada";
-    state.step = "editar_valor";
-    saveTelegramState_(props, stateKey, state);
-    sendTelegramMessage_(props, chatId, "¿Doble jornada? Responde sí o no.");
+    iniciarEdicionCampoConDia_(props, chatId, stateKey, state, "Doble jornada", "¿Doble jornada? Responde sí o no.");
     return;
   }
 
   sendTelegramMessage_(props, chatId, 'No entendido. Responde "extras", "tarifa", "nombre", "media jornada", "jefe operador" o "doble jornada".');
+}
+
+// Para los campos por-día, si el evento dura más de un día hay que preguntar
+// si el cambio es para todo el rango o solo para una fecha concreta dentro de él.
+function iniciarEdicionCampoConDia_(props, chatId, stateKey, state, campoInterno, mensajeValor) {
+  state.campo = campoInterno;
+  var dias = (state.eventoActual && state.eventoActual.dias) || [];
+
+  if (dias.length > 1) {
+    state.mensajeValorPendiente = mensajeValor;
+    state.step = "editar_dia";
+    saveTelegramState_(props, stateKey, state);
+    sendTelegramMessage_(props, chatId,
+      'Ese evento dura varios días (' + dias[0] + ' a ' + dias[dias.length - 1] + '). ' +
+      '¿Lo cambio para todos los días, o solo para uno? Responde "todos" o dime la fecha (ej: "16/07").'
+    );
+    return;
+  }
+
+  state.diaEspecifico = dias[0] || null;
+  state.step = "editar_valor";
+  saveTelegramState_(props, stateKey, state);
+  sendTelegramMessage_(props, chatId, mensajeValor);
+}
+
+function handleEditarDia_(props, chatId, stateKey, state, text) {
+  var norm = normalizeSimple_(text);
+  if (norm === "todos" || norm === "todo") {
+    state.diaEspecifico = null;
+    state.step = "editar_valor";
+    saveTelegramState_(props, stateKey, state);
+    sendTelegramMessage_(props, chatId, state.mensajeValorPendiente);
+    return;
+  }
+
+  var dias = parseFechas_(text);
+  if (!dias || dias.length !== 1) {
+    sendTelegramMessage_(props, chatId, 'Responde "todos" o una única fecha (ej: "16/07").');
+    return;
+  }
+
+  var iso = toIsoDate_(dias[0]);
+  if ((state.eventoActual.dias || []).indexOf(iso) === -1) {
+    sendTelegramMessage_(props, chatId, "Esa fecha no pertenece a este evento. Prueba con otra, o \"todos\".");
+    return;
+  }
+
+  state.diaEspecifico = iso;
+  state.step = "editar_valor";
+  saveTelegramState_(props, stateKey, state);
+  sendTelegramMessage_(props, chatId, state.mensajeValorPendiente);
 }
 
 function siNo_(valor) {
@@ -351,6 +397,18 @@ function handleEditarValor_(props, ss, chatId, stateKey, state, text) {
     return;
   }
 
+  if (state.diaEspecifico && CAMPOS_POR_DIA_[campo]) {
+    try {
+      actualizarCampoDia_(ss, state.eventKey, state.diaEspecifico, campo, valor);
+      props.deleteProperty(stateKey);
+      sendTelegramMessage_(props, chatId, "✅ Actualizado el día " + state.diaEspecifico + ".");
+    } catch (err) {
+      props.deleteProperty(stateKey);
+      sendTelegramMessage_(props, chatId, "⚠️ No se pudo actualizar: " + toErrorMessage_(err));
+    }
+    return;
+  }
+
   var calendars = resolveCalendars_(props);
   if (calendars.length === 0) {
     props.deleteProperty(stateKey);
@@ -377,6 +435,19 @@ function handleEditarValor_(props, ss, chatId, stateKey, state, text) {
     return;
   }
   sendTelegramMessage_(props, chatId, "✅ Actualizado.");
+}
+
+function actualizarCampoDia_(ss, eventKey, iso, campo, valor) {
+  var col = CAMPOS_POR_DIA_[campo];
+  if (!col) throw new Error("Campo no editable por día: " + campo);
+
+  var filas = collectAllEventRows_(ss).filter(function (r) {
+    return r.noteData.eventKey === eventKey && r.iso === iso;
+  });
+  if (!filas.length) throw new Error("No se encontró el día " + iso + " en ese evento.");
+
+  var valorCelda = campo === "extras" ? String(valor) : toBool_(valor);
+  filas[0].sheet.getRange(filas[0].row, col).setValue(valorCelda);
 }
 
 function buscarEventos_(ss, query) {
