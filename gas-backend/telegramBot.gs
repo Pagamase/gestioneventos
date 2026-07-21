@@ -150,7 +150,7 @@ function parseTelegramUpdate_(e) {
   if (contentType.indexOf("json") === -1) return null;
   try {
     var data = JSON.parse(e.postData.contents);
-    if (data && (data.message || data.edited_message)) return data;
+    if (data && (data.message || data.edited_message || data.callback_query)) return data;
     return null;
   } catch (err) {
     return null;
@@ -158,11 +158,20 @@ function parseTelegramUpdate_(e) {
 }
 
 function handleTelegramUpdate_(ss, props, update) {
-  var msg = update.message || update.edited_message;
-  if (!msg || !msg.chat || msg.text === undefined) return json_({ ok: true });
+  var chatId, text;
 
-  var chatId = String(msg.chat.id);
-  var text = String(msg.text || "").trim();
+  if (update.callback_query) {
+    responderCallback_(props, update.callback_query.id);
+    if (!update.callback_query.message || !update.callback_query.message.chat) return json_({ ok: true });
+    chatId = String(update.callback_query.message.chat.id);
+    text = String(update.callback_query.data || "").trim();
+  } else {
+    var msg = update.message || update.edited_message;
+    if (!msg || !msg.chat || msg.text === undefined) return json_({ ok: true });
+    chatId = String(msg.chat.id);
+    text = String(msg.text || "").trim();
+  }
+
   var stateKey = telegramStateKey_(chatId);
 
   if (/^\/(start|cuadrante)\b/i.test(text)) {
@@ -227,7 +236,7 @@ function handleEditarBuscar_(props, ss, chatId, stateKey, state, text) {
     var rango = o.fechaInicio === o.fechaFin ? o.fechaInicio : (o.fechaInicio + " a " + o.fechaFin);
     return (i + 1) + ". " + o.evento + " (" + rango + ")";
   });
-  sendTelegramMessage_(props, chatId, "Elige el evento (responde con el número):\n" + lines.join("\n"));
+  sendTelegramMessage_(props, chatId, "Elige el evento (responde con el número):\n" + lines.join("\n"), tecladoEventos_(state.opciones));
 }
 
 function handleEditarElegir_(props, ss, chatId, stateKey, state, text) {
@@ -255,7 +264,8 @@ function handleEditarElegir_(props, ss, chatId, stateKey, state, text) {
     'Editando "' + evento.evento + '" (' + rango + '). Tarifa: ' + evento.tarifa + '. Extras: ' + (evento.extras || "No") +
     '. Media jornada: ' + siNo_(evento.mediaJornada) + '. Jefe+Operador: ' + siNo_(evento.jefeOperador) +
     '. Doble jornada: ' + siNo_(evento.dobleJornada) + '.\n' +
-    '¿Qué quieres cambiar? Responde "extras", "tarifa", "nombre", "media jornada", "jefe operador" o "doble jornada".'
+    '¿Qué quieres cambiar?',
+    tecladoCampos_()
   );
 }
 
@@ -275,7 +285,7 @@ function handleEditarCampo_(props, chatId, stateKey, state, text) {
     state.campo = "tarifa";
     state.step = "editar_valor";
     saveTelegramState_(props, stateKey, state);
-    sendTelegramMessage_(props, chatId, buildTarifaMenu_());
+    sendTelegramMessage_(props, chatId, buildTarifaMenu_(), tecladoTarifa_());
     return;
   }
   if (campo === "nombre") {
@@ -313,7 +323,8 @@ function iniciarEdicionCampoConDia_(props, chatId, stateKey, state, campoInterno
     saveTelegramState_(props, stateKey, state);
     sendTelegramMessage_(props, chatId,
       'Ese evento dura varios días (' + dias[0] + ' a ' + dias[dias.length - 1] + '). ' +
-      '¿Lo cambio para todos los días, o solo para uno? Responde "todos" o dime la fecha (ej: "16/07").'
+      '¿Lo cambio para todos los días, o solo para uno? Responde "todos" o dime la fecha (ej: "16/07").',
+      tecladoDia_(dias)
     );
     return;
   }
@@ -321,7 +332,7 @@ function iniciarEdicionCampoConDia_(props, chatId, stateKey, state, campoInterno
   state.diaEspecifico = dias[0] || null;
   state.step = "editar_valor";
   saveTelegramState_(props, stateKey, state);
-  sendTelegramMessage_(props, chatId, mensajeValor);
+  sendTelegramMessage_(props, chatId, mensajeValor, tecladoParaCampo_(campoInterno, state.eventoActual.tarifa));
 }
 
 function handleEditarDia_(props, chatId, stateKey, state, text) {
@@ -330,26 +341,27 @@ function handleEditarDia_(props, chatId, stateKey, state, text) {
     state.diaEspecifico = null;
     state.step = "editar_valor";
     saveTelegramState_(props, stateKey, state);
-    sendTelegramMessage_(props, chatId, state.mensajeValorPendiente);
+    sendTelegramMessage_(props, chatId, state.mensajeValorPendiente, tecladoParaCampo_(state.campo, state.eventoActual.tarifa));
     return;
   }
 
-  var dias = parseFechas_(text);
+  var isoDirecto = parseIsoDate_(String(text || "").trim());
+  var dias = isoDirecto ? [isoDirecto] : parseFechas_(text);
   if (!dias || dias.length !== 1) {
-    sendTelegramMessage_(props, chatId, 'Responde "todos" o una única fecha (ej: "16/07").');
+    sendTelegramMessage_(props, chatId, 'Responde "todos" o una única fecha (ej: "16/07").', tecladoDia_(state.eventoActual.dias));
     return;
   }
 
   var iso = toIsoDate_(dias[0]);
   if ((state.eventoActual.dias || []).indexOf(iso) === -1) {
-    sendTelegramMessage_(props, chatId, "Esa fecha no pertenece a este evento. Prueba con otra, o \"todos\".");
+    sendTelegramMessage_(props, chatId, "Esa fecha no pertenece a este evento. Prueba con otra, o \"todos\".", tecladoDia_(state.eventoActual.dias));
     return;
   }
 
   state.diaEspecifico = iso;
   state.step = "editar_valor";
   saveTelegramState_(props, stateKey, state);
-  sendTelegramMessage_(props, chatId, state.mensajeValorPendiente);
+  sendTelegramMessage_(props, chatId, state.mensajeValorPendiente, tecladoParaCampo_(state.campo, state.eventoActual.tarifa));
 }
 
 function siNo_(valor) {
@@ -370,13 +382,13 @@ function handleEditarValor_(props, ss, chatId, stateKey, state, text) {
   if (campo === "extras") {
     valor = resolveExtraFromText_(state.eventoActual.tarifa, text);
     if (!valor) {
-      sendTelegramMessage_(props, chatId, "No he reconocido esa opción.\n" + buildExtrasMenu_(state.eventoActual.tarifa));
+      sendTelegramMessage_(props, chatId, "No he reconocido esa opción.\n" + buildExtrasMenu_(state.eventoActual.tarifa), tecladoExtras_(state.eventoActual.tarifa));
       return;
     }
   } else if (campo === "tarifa") {
     valor = resolveTarifaFromText_(text);
     if (!valor) {
-      sendTelegramMessage_(props, chatId, "No he reconocido esa tarifa.\n" + buildTarifaMenu_());
+      sendTelegramMessage_(props, chatId, "No he reconocido esa tarifa.\n" + buildTarifaMenu_(), tecladoTarifa_());
       return;
     }
   } else if (campo === "evento") {
@@ -388,7 +400,7 @@ function handleEditarValor_(props, ss, chatId, stateKey, state, text) {
   } else if (campo === "mediaJornada" || campo === "jefeOperador" || campo === "Doble jornada") {
     var boolValor = resolveSiNo_(text);
     if (boolValor === null) {
-      sendTelegramMessage_(props, chatId, "Responde sí o no.");
+      sendTelegramMessage_(props, chatId, "Responde sí o no.", tecladoSiNo_());
       return;
     }
     valor = boolValor;
@@ -493,13 +505,13 @@ function handleAwaitingEvento_(props, chatId, stateKey, state, text) {
   state.evento = text;
   state.step = "awaiting_tarifa";
   saveTelegramState_(props, stateKey, state);
-  sendTelegramMessage_(props, chatId, buildTarifaMenu_());
+  sendTelegramMessage_(props, chatId, buildTarifaMenu_(), tecladoTarifa_());
 }
 
 function handleAwaitingTarifa_(props, ss, chatId, stateKey, state, text) {
   var tarifa = resolveTarifaFromText_(text);
   if (!tarifa) {
-    sendTelegramMessage_(props, chatId, "No he reconocido esa tarifa.\n" + buildTarifaMenu_());
+    sendTelegramMessage_(props, chatId, "No he reconocido esa tarifa.\n" + buildTarifaMenu_(), tecladoTarifa_());
     return;
   }
 
@@ -727,16 +739,98 @@ function saveTelegramState_(props, key, state) {
   props.setProperty(key, JSON.stringify(state));
 }
 
-function sendTelegramMessage_(props, chatId, text) {
+function sendTelegramMessage_(props, chatId, text, replyMarkup) {
   var token = props.getProperty("TELEGRAM_TOKEN");
   if (!token) {
     Logger.log("Falta TELEGRAM_TOKEN en Script Properties");
     return;
   }
+  var payload = { chat_id: chatId, text: text };
+  if (replyMarkup) payload.reply_markup = replyMarkup;
   UrlFetchApp.fetch("https://api.telegram.org/bot" + token + "/sendMessage", {
     method: "post",
     contentType: "application/json",
-    payload: JSON.stringify({ chat_id: chatId, text: text }),
+    payload: JSON.stringify(payload),
     muteHttpExceptions: true
   });
+}
+
+function responderCallback_(props, callbackId) {
+  var token = props.getProperty("TELEGRAM_TOKEN");
+  if (!token) return;
+  UrlFetchApp.fetch("https://api.telegram.org/bot" + token + "/answerCallbackQuery", {
+    method: "post",
+    contentType: "application/json",
+    payload: JSON.stringify({ callback_query_id: callbackId }),
+    muteHttpExceptions: true
+  });
+}
+
+// ---- Botones (inline keyboards) ----
+// El callback_data de cada botón es exactamente el mismo texto que se
+// aceptaría si el usuario lo escribiera a mano, así que los handlers de
+// cada paso no necesitan saber si vino de un botón o de texto libre.
+
+function teclado_(botones, columnas) {
+  columnas = columnas || 1;
+  var filas = [];
+  for (var i = 0; i < botones.length; i += columnas) {
+    filas.push(botones.slice(i, i + columnas).map(function (b) {
+      return { text: b.text, callback_data: b.data };
+    }));
+  }
+  return { inline_keyboard: filas };
+}
+
+function tecladoTarifa_() {
+  return teclado_(
+    TARIFAS_DISPONIBLES.map(function (t, i) { return { text: t, data: String(i + 1) }; }),
+    2
+  );
+}
+
+function tecladoExtras_(tarifa) {
+  var opciones = extrasDisponiblesParaTarifa_(tarifa);
+  return teclado_(
+    opciones.map(function (o, i) { return { text: o.valor, data: String(i + 1) }; }),
+    2
+  );
+}
+
+function tecladoSiNo_() {
+  return teclado_([{ text: "Sí", data: "si" }, { text: "No", data: "no" }], 2);
+}
+
+function tecladoCampos_() {
+  return teclado_([
+    { text: "Extras", data: "extras" },
+    { text: "Tarifa", data: "tarifa" },
+    { text: "Nombre", data: "nombre" },
+    { text: "Media jornada", data: "media jornada" },
+    { text: "Jefe + Operador", data: "jefe operador" },
+    { text: "Doble jornada", data: "doble jornada" }
+  ], 1);
+}
+
+function tecladoEventos_(opciones) {
+  return teclado_(
+    opciones.map(function (o, i) {
+      var rango = o.fechaInicio === o.fechaFin ? o.fechaInicio : (o.fechaInicio + " a " + o.fechaFin);
+      return { text: o.evento + " (" + rango + ")", data: String(i + 1) };
+    }),
+    1
+  );
+}
+
+function tecladoDia_(dias) {
+  var botones = [{ text: "Todos los días", data: "todos" }].concat(
+    (dias || []).map(function (iso) { return { text: iso, data: iso }; })
+  );
+  return teclado_(botones, 1);
+}
+
+function tecladoParaCampo_(campo, tarifa) {
+  if (campo === "extras") return tecladoExtras_(tarifa);
+  if (campo === "mediaJornada" || campo === "jefeOperador" || campo === "Doble jornada") return tecladoSiNo_();
+  return null;
 }
