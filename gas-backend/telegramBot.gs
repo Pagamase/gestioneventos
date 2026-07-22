@@ -114,6 +114,10 @@ function resolveExtraFromText_(tarifa, text) {
 
 // ---- Trigger semanal (proactivo) ----
 
+// Teclado fijo (no va pegado a un mensaje concreto, se queda siempre visible
+// debajo de donde se escribe) para no tener que teclear /cuadrante o /editar.
+var TECLADO_PRINCIPAL_ = { keyboard: [["📅 Cuadrante", "✏️ Editar"]], resize_keyboard: true };
+
 function enviarPreguntaCuadrante() {
   var props = PropertiesService.getScriptProperties();
   var chatId = props.getProperty("TELEGRAM_CHAT_ID");
@@ -122,7 +126,7 @@ function enviarPreguntaCuadrante() {
     return;
   }
   saveTelegramState_(props, telegramStateKey_(chatId), { step: "awaiting_days" });
-  sendTelegramMessage_(props, chatId, MENSAJE_PIDE_DIAS_);
+  sendTelegramMessage_(props, chatId, MENSAJE_PIDE_DIAS_, TECLADO_PRINCIPAL_);
 }
 
 // Ejecutar una vez a mano desde el editor de Apps Script para instalar el trigger.
@@ -175,22 +179,22 @@ function handleTelegramUpdate_(ss, props, update) {
 
   var stateKey = telegramStateKey_(chatId);
 
-  if (/^\/(start|cuadrante)\b/i.test(text)) {
+  if (/^\/(start|cuadrante)\b/i.test(text) || text === "📅 Cuadrante") {
     var freshState = { step: "awaiting_days" };
     saveTelegramState_(props, stateKey, freshState);
-    sendTelegramMessage_(props, chatId, MENSAJE_PIDE_DIAS_);
+    sendTelegramMessage_(props, chatId, MENSAJE_PIDE_DIAS_, TECLADO_PRINCIPAL_);
     return json_({ ok: true });
   }
 
   if (/^\/(cancelar|cancel)\b/i.test(text)) {
     props.deleteProperty(stateKey);
-    sendTelegramMessage_(props, chatId, "Vale, cancelado.");
+    sendTelegramMessage_(props, chatId, "Vale, cancelado.", TECLADO_PRINCIPAL_);
     return json_({ ok: true });
   }
 
-  if (/^\/(editar|buscar)\b/i.test(text)) {
+  if (/^\/(editar|buscar)\b/i.test(text) || text === "✏️ Editar") {
     saveTelegramState_(props, stateKey, { step: "editar_buscar" });
-    sendTelegramMessage_(props, chatId, '¿Qué evento quieres editar? Dime parte del nombre (ej: "Netflix").');
+    sendTelegramMessage_(props, chatId, '¿Qué evento quieres editar? Dime parte del nombre (ej: "Netflix").', TECLADO_PRINCIPAL_);
     return json_({ ok: true });
   }
 
@@ -251,7 +255,7 @@ function handleEditarElegir_(props, ss, chatId, stateKey, state, text) {
   var evento = obtenerEvento_(ss, opciones[num - 1].eventKey);
   if (!evento) {
     props.deleteProperty(stateKey);
-    sendTelegramMessage_(props, chatId, "No he podido recuperar ese evento. Prueba de nuevo con /editar.");
+    sendTelegramMessage_(props, chatId, "No he podido recuperar ese evento. Prueba de nuevo con /editar.", TECLADO_PRINCIPAL_);
     return;
   }
 
@@ -414,10 +418,10 @@ function handleEditarValor_(props, ss, chatId, stateKey, state, text) {
     try {
       actualizarCampoDia_(ss, state.eventKey, state.diaEspecifico, campo, valor);
       props.deleteProperty(stateKey);
-      sendTelegramMessage_(props, chatId, "✅ Actualizado el día " + state.diaEspecifico + ".");
+      sendTelegramMessage_(props, chatId, "✅ Actualizado el día " + state.diaEspecifico + ".", TECLADO_PRINCIPAL_);
     } catch (err) {
       props.deleteProperty(stateKey);
-      sendTelegramMessage_(props, chatId, "⚠️ No se pudo actualizar: " + toErrorMessage_(err));
+      sendTelegramMessage_(props, chatId, "⚠️ No se pudo actualizar: " + toErrorMessage_(err), TECLADO_PRINCIPAL_);
     }
     return;
   }
@@ -425,7 +429,7 @@ function handleEditarValor_(props, ss, chatId, stateKey, state, text) {
   var calendars = resolveCalendars_(props);
   if (calendars.length === 0) {
     props.deleteProperty(stateKey);
-    sendTelegramMessage_(props, chatId, "⚠️ No hay calendarios configurados en Script Properties (CALENDAR_ID_1 / CALENDAR_ID_2).");
+    sendTelegramMessage_(props, chatId, "⚠️ No hay calendarios configurados en Script Properties (CALENDAR_ID_1 / CALENDAR_ID_2).", TECLADO_PRINCIPAL_);
     return;
   }
 
@@ -437,17 +441,17 @@ function handleEditarValor_(props, ss, chatId, stateKey, state, text) {
     resultado = handleActualizarEvento_(ss, calendars, params);
   } catch (err) {
     props.deleteProperty(stateKey);
-    sendTelegramMessage_(props, chatId, "⚠️ No se pudo actualizar: " + toErrorMessage_(err));
+    sendTelegramMessage_(props, chatId, "⚠️ No se pudo actualizar: " + toErrorMessage_(err), TECLADO_PRINCIPAL_);
     return;
   }
 
   props.deleteProperty(stateKey);
   var data = JSON.parse(resultado.getContent());
   if (data && data.error) {
-    sendTelegramMessage_(props, chatId, "⚠️ No se pudo actualizar: " + data.error);
+    sendTelegramMessage_(props, chatId, "⚠️ No se pudo actualizar: " + data.error, TECLADO_PRINCIPAL_);
     return;
   }
-  sendTelegramMessage_(props, chatId, "✅ Actualizado.");
+  sendTelegramMessage_(props, chatId, "✅ Actualizado.", TECLADO_PRINCIPAL_);
 }
 
 function actualizarCampoDia_(ss, eventKey, iso, campo, valor) {
@@ -480,7 +484,7 @@ function handleAwaitingDias_(props, chatId, stateKey, state, text) {
   var norm = normalizeSimple_(text);
   if (["no", "nada", "ninguno", "ninguna", "libre", "sin bolos"].indexOf(norm) !== -1) {
     props.deleteProperty(stateKey);
-    sendTelegramMessage_(props, chatId, "Vale, semana libre 👍");
+    sendTelegramMessage_(props, chatId, "Vale, semana libre 👍", TECLADO_PRINCIPAL_);
     return;
   }
 
@@ -525,7 +529,7 @@ function handleAwaitingTarifa_(props, ss, chatId, stateKey, state, text) {
 
   var calendars = resolveCalendars_(props);
   if (calendars.length === 0) {
-    sendTelegramMessage_(props, chatId, "⚠️ No hay calendarios configurados en Script Properties (CALENDAR_ID_1 / CALENDAR_ID_2).");
+    sendTelegramMessage_(props, chatId, "⚠️ No hay calendarios configurados en Script Properties (CALENDAR_ID_1 / CALENDAR_ID_2).", TECLADO_PRINCIPAL_);
     props.deleteProperty(stateKey);
     return;
   }
@@ -557,7 +561,7 @@ function handleAwaitingTarifa_(props, ss, chatId, stateKey, state, text) {
   if (errores.length) {
     mensaje += "⚠️ No se pudo guardar: " + errores.join("; ");
   }
-  sendTelegramMessage_(props, chatId, mensaje.trim() || "Listo.");
+  sendTelegramMessage_(props, chatId, mensaje.trim() || "Listo.", TECLADO_PRINCIPAL_);
 }
 
 function buildTarifaMenu_() {
