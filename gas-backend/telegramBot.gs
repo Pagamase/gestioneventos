@@ -194,7 +194,7 @@ function handleTelegramUpdate_(ss, props, update) {
 
   if (/^\/(editar|buscar)\b/i.test(text) || text === "✏️ Editar") {
     saveTelegramState_(props, stateKey, { step: "editar_buscar" });
-    sendTelegramMessage_(props, chatId, '¿Qué evento quieres editar? Dime parte del nombre (ej: "Netflix").', TECLADO_PRINCIPAL_);
+    sendTelegramMessage_(props, chatId, '¿Qué evento quieres editar? Dime parte del nombre (ej: "Netflix") o, si es un nombre genérico (descanso, viaje, nave...), dime la fecha (ej: "16/07").', TECLADO_PRINCIPAL_);
     return json_({ ok: true });
   }
 
@@ -227,9 +227,19 @@ function handleTelegramUpdate_(ss, props, update) {
 
 function handleEditarBuscar_(props, ss, chatId, stateKey, state, text) {
   var query = String(text || "").trim();
-  var eventos = buscarEventos_(ss, query).slice(0, 10);
+
+  // Si lo que ha escrito es una fecha concreta, buscamos por fecha en vez de
+  // por nombre: para etiquetas genéricas repetidas (descanso, viaje, nave...)
+  // buscar por nombre da demasiados resultados, pero solo hay un evento por día.
+  var fechaUnica = intentarFechaUnica_(query);
+  var eventos = fechaUnica
+    ? buscarEventosPorFecha_(ss, fechaUnica).slice(0, 10)
+    : buscarEventos_(ss, query).slice(0, 10);
+
   if (!eventos.length) {
-    sendTelegramMessage_(props, chatId, 'No he encontrado ningún evento con "' + query + '". Prueba con otro texto, o /cancelar.');
+    sendTelegramMessage_(props, chatId,
+      'No he encontrado ningún evento con "' + query + '". Prueba con otro texto, con una fecha (ej: "16/07") si el nombre es genérico, o /cancelar.'
+    );
     return;
   }
 
@@ -521,6 +531,21 @@ function buscarEventos_(ss, query) {
   var output = handleListarEventos_(ss, { q: query });
   var data = JSON.parse(output.getContent());
   return (data && data.events) || [];
+}
+
+// Si el texto es una única fecha (no un rango), la devuelve en formato ISO.
+function intentarFechaUnica_(text) {
+  var directo = parseIsoDate_(String(text || "").trim());
+  if (directo) return toIsoDate_(directo);
+  var dias = parseFechas_(text);
+  if (dias && dias.length === 1) return toIsoDate_(dias[0]);
+  return null;
+}
+
+function buscarEventosPorFecha_(ss, iso) {
+  return buscarEventos_(ss, "").filter(function (ev) {
+    return ev.fechaInicio <= iso && iso <= ev.fechaFin;
+  });
 }
 
 function obtenerEvento_(ss, eventKey) {
