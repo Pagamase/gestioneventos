@@ -206,6 +206,8 @@ function handleTelegramUpdate_(ss, props, update) {
     handleEditarElegir_(props, ss, chatId, stateKey, state, text);
   } else if (state.step === "editar_campo") {
     handleEditarCampo_(props, chatId, stateKey, state, text);
+  } else if (state.step === "editar_confirmar_eliminar") {
+    handleEditarConfirmarEliminar_(props, ss, chatId, stateKey, state, text);
   } else if (state.step === "editar_dia") {
     handleEditarDia_(props, chatId, stateKey, state, text);
   } else if (state.step === "editar_valor") {
@@ -312,8 +314,56 @@ function handleEditarCampo_(props, chatId, stateKey, state, text) {
     iniciarEdicionCampoConDia_(props, chatId, stateKey, state, "Doble jornada", "¿Doble jornada? Responde sí o no.");
     return;
   }
+  if (campo === "eliminar" || campo === "borrar" || campo === "eliminar evento") {
+    state.step = "editar_confirmar_eliminar";
+    saveTelegramState_(props, stateKey, state);
+    var evento = state.eventoActual;
+    var rango = evento.fechaInicio === evento.fechaFin ? evento.fechaInicio : (evento.fechaInicio + " a " + evento.fechaFin);
+    sendTelegramMessage_(props, chatId,
+      '¿Seguro que quieres eliminar "' + evento.evento + '" completo (' + rango + ')? Se borra del Sheet y de los 2 calendarios. Responde sí o no.',
+      tecladoSiNo_()
+    );
+    return;
+  }
 
-  sendTelegramMessage_(props, chatId, 'No entendido. Responde "extras", "tarifa", "nombre", "media jornada", "jefe operador" o "doble jornada".');
+  sendTelegramMessage_(props, chatId, 'No entendido. Responde "extras", "tarifa", "nombre", "media jornada", "jefe operador", "doble jornada" o "eliminar".');
+}
+
+function handleEditarConfirmarEliminar_(props, ss, chatId, stateKey, state, text) {
+  var confirmar = resolveSiNo_(text);
+  if (confirmar === null) {
+    sendTelegramMessage_(props, chatId, "Responde sí o no.", tecladoSiNo_());
+    return;
+  }
+  if (!confirmar) {
+    props.deleteProperty(stateKey);
+    sendTelegramMessage_(props, chatId, "Vale, no se ha eliminado nada.", TECLADO_PRINCIPAL_);
+    return;
+  }
+
+  var calendars = resolveCalendars_(props);
+  if (calendars.length === 0) {
+    props.deleteProperty(stateKey);
+    sendTelegramMessage_(props, chatId, "⚠️ No hay calendarios configurados en Script Properties (CALENDAR_ID_1 / CALENDAR_ID_2).", TECLADO_PRINCIPAL_);
+    return;
+  }
+
+  var resultado;
+  try {
+    resultado = handleEliminarEvento_(ss, calendars, { eventKey: state.eventKey });
+  } catch (err) {
+    props.deleteProperty(stateKey);
+    sendTelegramMessage_(props, chatId, "⚠️ No se pudo eliminar: " + toErrorMessage_(err), TECLADO_PRINCIPAL_);
+    return;
+  }
+
+  props.deleteProperty(stateKey);
+  var data = JSON.parse(resultado.getContent());
+  if (data && data.error) {
+    sendTelegramMessage_(props, chatId, "⚠️ No se pudo eliminar: " + data.error, TECLADO_PRINCIPAL_);
+    return;
+  }
+  sendTelegramMessage_(props, chatId, "🗑️ Evento eliminado (" + data.diasEliminados + " día(s)).", TECLADO_PRINCIPAL_);
 }
 
 // Para los campos por-día, si el evento dura más de un día hay que preguntar
@@ -826,7 +876,8 @@ function tecladoCampos_() {
     { text: "Nombre", data: "nombre" },
     { text: "Media jornada", data: "media jornada" },
     { text: "Jefe + Operador", data: "jefe operador" },
-    { text: "Doble jornada", data: "doble jornada" }
+    { text: "Doble jornada", data: "doble jornada" },
+    { text: "🗑️ Eliminar evento", data: "eliminar" }
   ], 1);
 }
 
