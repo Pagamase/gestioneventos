@@ -202,6 +202,8 @@ function handleTelegramUpdate_(ss, props, update) {
 
   if (state.step === "editar_buscar") {
     handleEditarBuscar_(props, ss, chatId, stateKey, state, text);
+  } else if (state.step === "editar_buscar_mes") {
+    handleEditarBuscarMes_(props, ss, chatId, stateKey, state, text);
   } else if (state.step === "editar_elegir") {
     handleEditarElegir_(props, ss, chatId, stateKey, state, text);
   } else if (state.step === "editar_campo") {
@@ -225,8 +227,24 @@ function handleTelegramUpdate_(ss, props, update) {
 
 // ---- Edición de un evento ya guardado ----
 
+// Etiquetas que se repiten muchísimas veces sueltas por todo el Sheet: buscarlas
+// por nombre da cientos de resultados, así que directamente no se buscan por
+// nombre y se le pide al usuario una fecha (o al menos el mes).
+var PALABRAS_GENERICAS_ = ["descanso", "medio descanso", "viaje", "medio libre", "libre", "nave"];
+
 function handleEditarBuscar_(props, ss, chatId, stateKey, state, text) {
   var query = String(text || "").trim();
+
+  if (PALABRAS_GENERICAS_.indexOf(normalizeSimple_(query)) !== -1) {
+    state.terminoGenerico = query;
+    state.step = "editar_buscar_mes";
+    saveTelegramState_(props, stateKey, state);
+    sendTelegramMessage_(props, chatId,
+      '"' + query + '" aparece muchas veces en el Sheet. Dime una fecha concreta (ej: "16/07") o, ' +
+      'al menos, el mes (ej: "agosto") para buscar solo ahí.'
+    );
+    return;
+  }
 
   // Si lo que ha escrito es una fecha concreta, buscamos por fecha en vez de
   // por nombre: para etiquetas genéricas repetidas (descanso, viaje, nave...)
@@ -243,6 +261,44 @@ function handleEditarBuscar_(props, ss, chatId, stateKey, state, text) {
     return;
   }
 
+  mostrarOpcionesEvento_(props, chatId, stateKey, state, eventos);
+}
+
+// Segundo paso cuando el término era demasiado genérico: aquí solo se acepta
+// una fecha concreta o un mes, y se filtra por state.terminoGenerico + mes.
+function handleEditarBuscarMes_(props, ss, chatId, stateKey, state, text) {
+  var fechaUnica = intentarFechaUnica_(text);
+  if (fechaUnica) {
+    var eventosPorFecha = buscarEventosPorFecha_(ss, fechaUnica).slice(0, 10);
+    if (!eventosPorFecha.length) {
+      sendTelegramMessage_(props, chatId, "No he encontrado ningún evento ese día. Prueba con otra fecha, un mes, o /cancelar.");
+      return;
+    }
+    mostrarOpcionesEvento_(props, chatId, stateKey, state, eventosPorFecha);
+    return;
+  }
+
+  var mesIndex = monthIndexFromText_(text);
+  if (mesIndex < 0) {
+    sendTelegramMessage_(props, chatId, 'No lo he entendido. Dime una fecha (ej: "16/07") o un mes (ej: "agosto").');
+    return;
+  }
+
+  var anio = new Date().getFullYear();
+  var eventosDelMes = buscarEventos_(ss, state.terminoGenerico).filter(function (ev) {
+    var d = parseIsoDate_(ev.fechaInicio);
+    return d && d.getMonth() === mesIndex && d.getFullYear() === anio;
+  }).slice(0, 10);
+
+  if (!eventosDelMes.length) {
+    sendTelegramMessage_(props, chatId, 'No he encontrado "' + state.terminoGenerico + '" en ese mes. Prueba con otro mes, una fecha concreta, o /cancelar.');
+    return;
+  }
+
+  mostrarOpcionesEvento_(props, chatId, stateKey, state, eventosDelMes);
+}
+
+function mostrarOpcionesEvento_(props, chatId, stateKey, state, eventos) {
   state.opciones = eventos.map(function (ev) {
     return { eventKey: ev.eventKey, evento: ev.evento, fechaInicio: ev.fechaInicio, fechaFin: ev.fechaFin };
   });
