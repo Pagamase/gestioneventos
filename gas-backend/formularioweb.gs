@@ -9,17 +9,9 @@ function doGet(e) {
   if (e && e.parameter && e.parameter.ping === "1") {
     return json_({ ok: true, version: APP_VERSION });
   }
-  if (e && e.parameter && e.parameter.debugMes) {
-    var props = PropertiesService.getScriptProperties();
-    var spreadsheetId = props.getProperty("SPREADSHEET_ID") || "1GlBG2lRCFEkdZc8q_igLwia8ekyRGtUT5qo8sWqLgH4";
-    var ss = SpreadsheetApp.openById(spreadsheetId);
-    var hoja = ss.getSheetByName(String(e.parameter.debugMes));
-    if (!hoja) return json_({ error: "hoja no encontrada", nombre: e.parameter.debugMes });
-    var values = hoja.getRange(2, 3, 31, 7).getValues(); // C..I
-    var rows = values.map(function (r, i) {
-      return { dia: i + 1, evento: r[0], tarifa: r[1], colE: r[2], extras: r[3], mediaJornada: r[4], jefeOperador: r[5], dobleJornada: r[6] };
-    }).filter(function (r) { return r.evento || r.colE; });
-    return json_({ hoja: hoja.getName(), rows: rows });
+  if (e && e.parameter && e.parameter.debugNomina) {
+    var propsD = PropertiesService.getScriptProperties();
+    return json_({ texto: propsD.getProperty("NOMINA_DEBUG_TEXTO") || "" });
   }
   return json_({ ok: true, version: APP_VERSION });
 }

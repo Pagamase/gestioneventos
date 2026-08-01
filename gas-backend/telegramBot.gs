@@ -196,8 +196,12 @@ function handleTelegramUpdate_(ss, props, update) {
     text = String(update.callback_query.data || "").trim();
   } else {
     var msg = update.message || update.edited_message;
-    if (!msg || !msg.chat || msg.text === undefined) return json_({ ok: true });
+    if (!msg || !msg.chat) return json_({ ok: true });
     chatId = String(msg.chat.id);
+    if (msg.document) {
+      return handleTelegramDocument_(props, ss, chatId, msg.document);
+    }
+    if (msg.text === undefined) return json_({ ok: true });
     text = String(msg.text || "").trim();
   }
 
