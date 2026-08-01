@@ -9,10 +9,6 @@ function doGet(e) {
   if (e && e.parameter && e.parameter.ping === "1") {
     return json_({ ok: true, version: APP_VERSION });
   }
-  if (e && e.parameter && e.parameter.buscar) {
-    var ss = SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty("SPREADSHEET_ID") || "1GlBG2lRCFEkdZc8q_igLwia8ekyRGtUT5qo8sWqLgH4");
-    return handleListarEventos_(ss, { q: e.parameter.buscar });
-  }
   return json_({ ok: true, version: APP_VERSION });
 }
 
