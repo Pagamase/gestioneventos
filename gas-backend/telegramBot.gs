@@ -218,6 +218,11 @@ function handleTelegramUpdate_(ss, props, update) {
     return json_({ ok: true });
   }
 
+  if (/^\/menu\b/i.test(text)) {
+    sendTelegramMessage_(props, chatId, "Menú actualizado 👇", TECLADO_PRINCIPAL_);
+    return json_({ ok: true });
+  }
+
   if (text === "quitarvacaciones") {
     props.deleteProperty("VACACIONES_INICIO");
     props.deleteProperty("VACACIONES_FIN");
