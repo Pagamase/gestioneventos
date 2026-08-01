@@ -9,6 +9,13 @@ function doGet(e) {
   if (e && e.parameter && e.parameter.ping === "1") {
     return json_({ ok: true, version: APP_VERSION });
   }
+  if (e && e.parameter && e.parameter.debug === "1") {
+    var props = PropertiesService.getScriptProperties();
+    return json_({
+      ultimoMensaje: JSON.parse(props.getProperty("DEBUG_ULTIMO_MENSAJE") || "null"),
+      version: APP_VERSION
+    });
+  }
   return json_({ ok: true, version: APP_VERSION });
 }
 

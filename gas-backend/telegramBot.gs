@@ -1008,6 +1008,10 @@ function saveTelegramState_(props, key, state) {
 }
 
 function sendTelegramMessage_(props, chatId, text, replyMarkup) {
+  // DEBUG TEMPORAL: registra el último mensaje enviado, consultable via
+  // doGet?debug=1. Quitar en cuanto se resuelva el bug de los botones de extras.
+  props.setProperty("DEBUG_ULTIMO_MENSAJE", JSON.stringify({ chatId: chatId, text: text, ts: new Date().toISOString() }));
+
   var token = props.getProperty("TELEGRAM_TOKEN");
   if (!token) {
     Logger.log("Falta TELEGRAM_TOKEN en Script Properties");
