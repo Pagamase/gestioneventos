@@ -178,6 +178,15 @@ function parseTelegramUpdate_(e) {
 }
 
 function handleTelegramUpdate_(ss, props, update) {
+  // Si guardar/actualizar tarda unos segundos (Sheet + 2 calendarios), Telegram
+  // no recibe la confirmacion del webhook a tiempo y reenvia el mismo update.
+  // Como para entonces el estado ya se limpio, procesarlo otra vez cae en
+  // "esperando fechas" y falla. Se ignoran updates ya procesados por update_id.
+  if (update.update_id !== undefined && yaProcesadoUpdate_(props, update.update_id)) {
+    return json_({ ok: true });
+  }
+  if (update.update_id !== undefined) marcarUpdateProcesado_(props, update.update_id);
+
   var chatId, text;
 
   if (update.callback_query) {
@@ -971,6 +980,17 @@ function normalizeSimple_(text) {
 
 function telegramStateKey_(chatId) {
   return "TG_STATE_" + chatId;
+}
+
+// Deduplicado de updates de Telegram (ver comentario en handleTelegramUpdate_).
+// update_id es un entero creciente por bot, asi que basta con recordar el ultimo.
+function yaProcesadoUpdate_(props, updateId) {
+  var last = parseInt(props.getProperty("TG_LAST_UPDATE_ID") || "0", 10);
+  return !isNaN(last) && updateId <= last;
+}
+
+function marcarUpdateProcesado_(props, updateId) {
+  props.setProperty("TG_LAST_UPDATE_ID", String(updateId));
 }
 
 function readTelegramState_(props, key) {
