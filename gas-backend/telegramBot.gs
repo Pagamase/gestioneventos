@@ -15,7 +15,8 @@ var MENSAJE_PIDE_DIAS_ =
   '¿Qué días tienes bolo? Puedes darme fechas concretas (ej: "15 de agosto", ' +
   '"15/08 al 17/08", o "15 de agosto al 5 de septiembre" si dura varias semanas) ' +
   'o días de la semana que viene (ej: "lunes a miércoles"). ' +
-  'Si no tienes nada, responde "no". (Para editar un bolo ya guardado, usa /editar)';
+  'Si no tienes nada, responde "no". (Para editar un bolo ya guardado, usa /editar. ' +
+  'Para que no te escriba en unas fechas, usa /vacaciones)';
 
 // Misma lista y misma lógica de filtrado por tarifa que index.html (extras).
 var EXTRAS_OPCIONES_ = [
@@ -125,8 +126,22 @@ function enviarPreguntaCuadrante() {
     Logger.log("Falta TELEGRAM_CHAT_ID en Script Properties");
     return;
   }
+
+  if (enVacaciones_(props)) {
+    Logger.log("En vacaciones (" + props.getProperty("VACACIONES_INICIO") + " a " + props.getProperty("VACACIONES_FIN") + "), no se envia la pregunta del viernes.");
+    return;
+  }
+
   saveTelegramState_(props, telegramStateKey_(chatId), { step: "awaiting_days" });
   sendTelegramMessage_(props, chatId, MENSAJE_PIDE_DIAS_, TECLADO_PRINCIPAL_);
+}
+
+function enVacaciones_(props) {
+  var inicio = props.getProperty("VACACIONES_INICIO");
+  var fin = props.getProperty("VACACIONES_FIN");
+  if (!inicio || !fin) return false;
+  var hoyIso = toIsoDate_(new Date());
+  return hoyIso >= inicio && hoyIso <= fin;
 }
 
 // Ejecutar una vez a mano desde el editor de Apps Script para instalar el trigger.
@@ -198,12 +213,26 @@ function handleTelegramUpdate_(ss, props, update) {
     return json_({ ok: true });
   }
 
+  if (/^\/vacaciones\b/i.test(text)) {
+    iniciarVacaciones_(props, chatId, stateKey);
+    return json_({ ok: true });
+  }
+
+  if (text === "quitarvacaciones") {
+    props.deleteProperty("VACACIONES_INICIO");
+    props.deleteProperty("VACACIONES_FIN");
+    sendTelegramMessage_(props, chatId, "Vale, vacaciones quitadas. Te volveré a escribir los viernes.", TECLADO_PRINCIPAL_);
+    return json_({ ok: true });
+  }
+
   var state = readTelegramState_(props, stateKey) || { step: "awaiting_days" };
 
   if (state.step === "editar_buscar") {
     handleEditarBuscar_(props, ss, chatId, stateKey, state, text);
   } else if (state.step === "editar_buscar_mes") {
     handleEditarBuscarMes_(props, ss, chatId, stateKey, state, text);
+  } else if (state.step === "vacaciones_fechas") {
+    handleVacacionesFechas_(props, chatId, stateKey, state, text);
   } else if (state.step === "editar_elegir") {
     handleEditarElegir_(props, ss, chatId, stateKey, state, text);
   } else if (state.step === "editar_campo") {
@@ -223,6 +252,39 @@ function handleTelegramUpdate_(ss, props, update) {
   }
 
   return json_({ ok: true });
+}
+
+// ---- Modo vacaciones ----
+
+function iniciarVacaciones_(props, chatId, stateKey) {
+  var inicio = props.getProperty("VACACIONES_INICIO");
+  var fin = props.getProperty("VACACIONES_FIN");
+
+  if (fin && fin >= toIsoDate_(new Date())) {
+    sendTelegramMessage_(props, chatId,
+      "Ahora mismo tienes puesto no escribirte del " + inicio + " al " + fin + ". ¿Lo quito?",
+      teclado_([{ text: "Quitar vacaciones", data: "quitarvacaciones" }], 1)
+    );
+    return;
+  }
+
+  saveTelegramState_(props, stateKey, { step: "vacaciones_fechas" });
+  sendTelegramMessage_(props, chatId, '¿Qué fechas no quieres que te escriba? (ej: "15/08 al 30/08")', TECLADO_PRINCIPAL_);
+}
+
+function handleVacacionesFechas_(props, chatId, stateKey, state, text) {
+  var dias = parseFechas_(text);
+  if (!dias || !dias.length) {
+    sendTelegramMessage_(props, chatId, 'No he entendido esas fechas. Prueba con algo como "15/08 al 30/08".');
+    return;
+  }
+
+  var inicio = toIsoDate_(dias[0]);
+  var fin = toIsoDate_(dias[dias.length - 1]);
+  props.setProperty("VACACIONES_INICIO", inicio);
+  props.setProperty("VACACIONES_FIN", fin);
+  props.deleteProperty(stateKey);
+  sendTelegramMessage_(props, chatId, "Vale, no te escribiré entre " + inicio + " y " + fin + ".", TECLADO_PRINCIPAL_);
 }
 
 // ---- Edición de un evento ya guardado ----
