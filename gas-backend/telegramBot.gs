@@ -178,14 +178,19 @@ function parseTelegramUpdate_(e) {
 }
 
 function handleTelegramUpdate_(ss, props, update) {
+  // DEBUG TEMPORAL: chat de pruebas exento del deduplicado (para que no
+  // interfiera con el contador real). Quitar junto con el resto del debug.
+  var esChatDePrueba = (update.message && String(update.message.chat.id) === "999999999") ||
+    (update.callback_query && update.callback_query.message && String(update.callback_query.message.chat.id) === "999999999");
+
   // Si guardar/actualizar tarda unos segundos (Sheet + 2 calendarios), Telegram
   // no recibe la confirmacion del webhook a tiempo y reenvia el mismo update.
   // Como para entonces el estado ya se limpio, procesarlo otra vez cae en
   // "esperando fechas" y falla. Se ignoran updates ya procesados por update_id.
-  if (update.update_id !== undefined && yaProcesadoUpdate_(props, update.update_id)) {
+  if (!esChatDePrueba && update.update_id !== undefined && yaProcesadoUpdate_(props, update.update_id)) {
     return json_({ ok: true });
   }
-  if (update.update_id !== undefined) marcarUpdateProcesado_(props, update.update_id);
+  if (!esChatDePrueba && update.update_id !== undefined) marcarUpdateProcesado_(props, update.update_id);
 
   var chatId, text;
 
