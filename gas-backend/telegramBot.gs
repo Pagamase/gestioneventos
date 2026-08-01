@@ -117,7 +117,7 @@ function resolveExtraFromText_(tarifa, text) {
 
 // Teclado fijo (no va pegado a un mensaje concreto, se queda siempre visible
 // debajo de donde se escribe) para no tener que teclear /cuadrante o /editar.
-var TECLADO_PRINCIPAL_ = { keyboard: [["📅 Cuadrante", "✏️ Editar", "🏖️ Vacaciones"]], resize_keyboard: true };
+var TECLADO_PRINCIPAL_ = { keyboard: [["📅 Nuevo evento", "✏️ Editar", "🏖️ Vacaciones"]], resize_keyboard: true };
 
 function enviarPreguntaCuadrante() {
   var props = PropertiesService.getScriptProperties();
@@ -194,7 +194,7 @@ function handleTelegramUpdate_(ss, props, update) {
 
   var stateKey = telegramStateKey_(chatId);
 
-  if (/^\/(start|cuadrante)\b/i.test(text) || text === "📅 Cuadrante") {
+  if (/^\/(start|cuadrante)\b/i.test(text) || text === "📅 Nuevo evento") {
     var freshState = { step: "awaiting_days" };
     saveTelegramState_(props, stateKey, freshState);
     sendTelegramMessage_(props, chatId, MENSAJE_PIDE_DIAS_, TECLADO_PRINCIPAL_);
