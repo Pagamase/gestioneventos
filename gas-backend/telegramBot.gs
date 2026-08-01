@@ -206,6 +206,9 @@ function handleTelegramUpdate_(ss, props, update) {
     text = String(msg.text || "").trim();
   }
 
+  // DEBUG TEMPORAL
+  props.setProperty("DEBUG_RAW", JSON.stringify({ chatId: chatId, text: text, isCallback: !!update.callback_query, updateId: update.update_id }));
+
   var stateKey = telegramStateKey_(chatId);
 
   if (/^\/(start|cuadrante)\b/i.test(text) || text === "📅 Nuevo evento") {

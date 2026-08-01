@@ -16,6 +16,7 @@ function doGet(e) {
     }
     return json_({
       ultimoMensaje: JSON.parse(props.getProperty("DEBUG_ULTIMO_MENSAJE") || "null"),
+      ultimoRaw: JSON.parse(props.getProperty("DEBUG_RAW") || "null"),
       ultimoUpdateId: props.getProperty("TG_LAST_UPDATE_ID"),
       version: APP_VERSION
     });
