@@ -429,6 +429,13 @@ function handleEditarCampo_(props, chatId, stateKey, state, text) {
     sendTelegramMessage_(props, chatId, "¿Nuevo nombre del evento?");
     return;
   }
+  if (campo === "fechas" || campo === "fecha") {
+    state.campo = "fechas";
+    state.step = "editar_valor";
+    saveTelegramState_(props, stateKey, state);
+    sendTelegramMessage_(props, chatId, '¿Nuevas fechas para el evento? (ej: "15/08 al 20/08", "15 de agosto", "lunes a miércoles")');
+    return;
+  }
   if (campo === "media jornada" || campo === "mediajornada") {
     iniciarEdicionCampoConDia_(props, chatId, stateKey, state, "mediaJornada", "¿Media jornada? Responde sí o no.");
     return;
@@ -453,7 +460,7 @@ function handleEditarCampo_(props, chatId, stateKey, state, text) {
     return;
   }
 
-  sendTelegramMessage_(props, chatId, 'No entendido. Responde "extras", "tarifa", "nombre", "media jornada", "jefe operador", "doble jornada" o "eliminar".');
+  sendTelegramMessage_(props, chatId, 'No entendido. Responde "extras", "tarifa", "nombre", "fechas", "media jornada", "jefe operador", "doble jornada" o "eliminar".');
 }
 
 function handleEditarConfirmarEliminar_(props, ss, chatId, stateKey, state, text) {
@@ -579,6 +586,16 @@ function handleEditarValor_(props, ss, chatId, stateKey, state, text) {
       sendTelegramMessage_(props, chatId, "Necesito un nombre.");
       return;
     }
+  } else if (campo === "fechas") {
+    var nuevasFechas = parseFechas_(text);
+    if (!nuevasFechas || !nuevasFechas.length) {
+      sendTelegramMessage_(props, chatId, 'No he entendido esas fechas. Prueba con algo como "15/08 al 20/08".');
+      return;
+    }
+    valor = {
+      fechaInicio: toIsoDate_(nuevasFechas[0]),
+      fechaFin: toIsoDate_(nuevasFechas[nuevasFechas.length - 1])
+    };
   } else if (campo === "mediaJornada" || campo === "jefeOperador" || campo === "Doble jornada") {
     var boolValor = resolveSiNo_(text);
     if (boolValor === null) {
@@ -611,7 +628,12 @@ function handleEditarValor_(props, ss, chatId, stateKey, state, text) {
   }
 
   var params = { eventKey: state.eventKey };
-  params[campo] = valor;
+  if (campo === "fechas") {
+    params.fechaInicio = valor.fechaInicio;
+    params.fechaFin = valor.fechaFin;
+  } else {
+    params[campo] = valor;
+  }
 
   var resultado;
   try {
@@ -1027,6 +1049,7 @@ function tecladoCampos_() {
     { text: "Extras", data: "extras" },
     { text: "Tarifa", data: "tarifa" },
     { text: "Nombre", data: "nombre" },
+    { text: "Fechas", data: "fechas" },
     { text: "Media jornada", data: "media jornada" },
     { text: "Jefe + Operador", data: "jefe operador" },
     { text: "Doble jornada", data: "doble jornada" },
