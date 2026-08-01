@@ -262,7 +262,7 @@ function iniciarVacaciones_(props, chatId, stateKey) {
 
   if (fin && fin >= toIsoDate_(new Date())) {
     sendTelegramMessage_(props, chatId,
-      "Ahora mismo tienes puesto no escribirte del " + inicio + " al " + fin + ". ¿Lo quito?",
+      "Ahora mismo tienes puesto no escribirte del " + formatFechaDisplay_(inicio) + " al " + formatFechaDisplay_(fin) + ". ¿Lo quito?",
       teclado_([{ text: "Quitar vacaciones", data: "quitarvacaciones" }], 1)
     );
     return;
@@ -284,7 +284,7 @@ function handleVacacionesFechas_(props, chatId, stateKey, state, text) {
   props.setProperty("VACACIONES_INICIO", inicio);
   props.setProperty("VACACIONES_FIN", fin);
   props.deleteProperty(stateKey);
-  sendTelegramMessage_(props, chatId, "Vale, no te escribiré entre " + inicio + " y " + fin + ".", TECLADO_PRINCIPAL_);
+  sendTelegramMessage_(props, chatId, "Vale, no te escribiré entre " + formatFechaDisplay_(inicio) + " y " + formatFechaDisplay_(fin) + ".", TECLADO_PRINCIPAL_);
 }
 
 // ---- Edición de un evento ya guardado ----
@@ -368,8 +368,7 @@ function mostrarOpcionesEvento_(props, chatId, stateKey, state, eventos) {
   saveTelegramState_(props, stateKey, state);
 
   var lines = state.opciones.map(function (o, i) {
-    var rango = o.fechaInicio === o.fechaFin ? o.fechaInicio : (o.fechaInicio + " a " + o.fechaFin);
-    return (i + 1) + ". " + o.evento + " (" + rango + ")";
+    return (i + 1) + ". " + o.evento + " (" + formatRangoDisplay_(o.fechaInicio, o.fechaFin) + ")";
   });
   sendTelegramMessage_(props, chatId, "Elige el evento (responde con el número):\n" + lines.join("\n"), tecladoEventos_(state.opciones));
 }
@@ -394,7 +393,7 @@ function handleEditarElegir_(props, ss, chatId, stateKey, state, text) {
   state.step = "editar_campo";
   saveTelegramState_(props, stateKey, state);
 
-  var rango = evento.fechaInicio === evento.fechaFin ? evento.fechaInicio : (evento.fechaInicio + " a " + evento.fechaFin);
+  var rango = formatRangoDisplay_(evento.fechaInicio, evento.fechaFin);
   sendTelegramMessage_(props, chatId,
     'Editando "' + evento.evento + '" (' + rango + '). Tarifa: ' + evento.tarifa + '. Extras: ' + (evento.extras || "No") +
     '. Media jornada: ' + siNo_(evento.mediaJornada) + '. Jefe+Operador: ' + siNo_(evento.jefeOperador) +
@@ -446,7 +445,7 @@ function handleEditarCampo_(props, chatId, stateKey, state, text) {
     state.step = "editar_confirmar_eliminar";
     saveTelegramState_(props, stateKey, state);
     var evento = state.eventoActual;
-    var rango = evento.fechaInicio === evento.fechaFin ? evento.fechaInicio : (evento.fechaInicio + " a " + evento.fechaFin);
+    var rango = formatRangoDisplay_(evento.fechaInicio, evento.fechaFin);
     sendTelegramMessage_(props, chatId,
       '¿Seguro que quieres eliminar "' + evento.evento + '" completo (' + rango + ')? Se borra del Sheet y de los 2 calendarios. Responde sí o no.',
       tecladoSiNo_()
@@ -505,7 +504,7 @@ function iniciarEdicionCampoConDia_(props, chatId, stateKey, state, campoInterno
     state.step = "editar_dia";
     saveTelegramState_(props, stateKey, state);
     sendTelegramMessage_(props, chatId,
-      'Ese evento dura varios días (' + dias[0] + ' a ' + dias[dias.length - 1] + '). ' +
+      'Ese evento dura varios días (' + formatRangoDisplay_(dias[0], dias[dias.length - 1]) + '). ' +
       '¿Lo cambio para todos los días, o solo para uno? Responde "todos" o dime la fecha (ej: "16/07").',
       tecladoDia_(dias)
     );
@@ -596,7 +595,7 @@ function handleEditarValor_(props, ss, chatId, stateKey, state, text) {
     try {
       actualizarCampoDia_(ss, state.eventKey, state.diaEspecifico, campo, valor);
       props.deleteProperty(stateKey);
-      sendTelegramMessage_(props, chatId, "✅ Actualizado el día " + state.diaEspecifico + ".", TECLADO_PRINCIPAL_);
+      sendTelegramMessage_(props, chatId, "✅ Actualizado el día " + formatFechaDisplay_(state.diaEspecifico) + ".", TECLADO_PRINCIPAL_);
     } catch (err) {
       props.deleteProperty(stateKey);
       sendTelegramMessage_(props, chatId, "⚠️ No se pudo actualizar: " + toErrorMessage_(err), TECLADO_PRINCIPAL_);
@@ -917,9 +916,20 @@ function agruparDiasConsecutivos_(fechasOrdenadas) {
 }
 
 function formatRangoLegible_(inicio, fin) {
-  var f1 = pad2_(inicio.getDate()) + "/" + pad2_(inicio.getMonth() + 1);
-  if (inicio.getTime() === fin.getTime()) return f1;
-  return f1 + "–" + pad2_(fin.getDate()) + "/" + pad2_(fin.getMonth() + 1);
+  return formatRangoDisplay_(toIsoDate_(inicio), toIsoDate_(fin));
+}
+
+// Formato en que el bot muestra las fechas al usuario: dd-mm-aaaa.
+// (Los formatos que se aceptan al escribir no cambian, ver parseFechas_.)
+function formatFechaDisplay_(iso) {
+  var d = parseIsoDate_(iso);
+  if (!d) return iso;
+  return pad2_(d.getDate()) + "-" + pad2_(d.getMonth() + 1) + "-" + d.getFullYear();
+}
+
+function formatRangoDisplay_(isoInicio, isoFin) {
+  if (isoInicio === isoFin) return formatFechaDisplay_(isoInicio);
+  return formatFechaDisplay_(isoInicio) + " a " + formatFechaDisplay_(isoFin);
 }
 
 function normalizeSimple_(text) {
@@ -1027,8 +1037,7 @@ function tecladoCampos_() {
 function tecladoEventos_(opciones) {
   return teclado_(
     opciones.map(function (o, i) {
-      var rango = o.fechaInicio === o.fechaFin ? o.fechaInicio : (o.fechaInicio + " a " + o.fechaFin);
-      return { text: o.evento + " (" + rango + ")", data: String(i + 1) };
+      return { text: o.evento + " (" + formatRangoDisplay_(o.fechaInicio, o.fechaFin) + ")", data: String(i + 1) };
     }),
     1
   );
@@ -1040,7 +1049,7 @@ function tecladoDia_(dias) {
   // Si el evento dura muchas semanas, listar un botón por día sería enorme:
   // se deja solo el botón "todos" y el usuario escribe la fecha a mano.
   if (dias.length <= 20) {
-    botones = botones.concat(dias.map(function (iso) { return { text: iso, data: iso }; }));
+    botones = botones.concat(dias.map(function (iso) { return { text: formatFechaDisplay_(iso), data: iso }; }));
   }
   return teclado_(botones, 1);
 }
