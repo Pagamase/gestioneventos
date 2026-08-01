@@ -9,18 +9,6 @@ function doGet(e) {
   if (e && e.parameter && e.parameter.ping === "1") {
     return json_({ ok: true, version: APP_VERSION });
   }
-  if (e && e.parameter && e.parameter.debug === "1") {
-    var props = PropertiesService.getScriptProperties();
-    if (e.parameter.reset === "1") {
-      props.deleteProperty("TG_LAST_UPDATE_ID");
-    }
-    return json_({
-      ultimoMensaje: JSON.parse(props.getProperty("DEBUG_ULTIMO_MENSAJE") || "null"),
-      ultimoRaw: JSON.parse(props.getProperty("DEBUG_RAW") || "null"),
-      ultimoUpdateId: props.getProperty("TG_LAST_UPDATE_ID"),
-      version: APP_VERSION
-    });
-  }
   return json_({ ok: true, version: APP_VERSION });
 }
 

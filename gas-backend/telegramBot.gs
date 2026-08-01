@@ -178,19 +178,14 @@ function parseTelegramUpdate_(e) {
 }
 
 function handleTelegramUpdate_(ss, props, update) {
-  // DEBUG TEMPORAL: chat de pruebas exento del deduplicado (para que no
-  // interfiera con el contador real). Quitar junto con el resto del debug.
-  var esChatDePrueba = (update.message && String(update.message.chat.id) === "999999999") ||
-    (update.callback_query && update.callback_query.message && String(update.callback_query.message.chat.id) === "999999999");
-
   // Si guardar/actualizar tarda unos segundos (Sheet + 2 calendarios), Telegram
   // no recibe la confirmacion del webhook a tiempo y reenvia el mismo update.
   // Como para entonces el estado ya se limpio, procesarlo otra vez cae en
   // "esperando fechas" y falla. Se ignoran updates ya procesados por update_id.
-  if (!esChatDePrueba && update.update_id !== undefined && yaProcesadoUpdate_(props, update.update_id)) {
+  if (update.update_id !== undefined && yaProcesadoUpdate_(props, update.update_id)) {
     return json_({ ok: true });
   }
-  if (!esChatDePrueba && update.update_id !== undefined) marcarUpdateProcesado_(props, update.update_id);
+  if (update.update_id !== undefined) marcarUpdateProcesado_(props, update.update_id);
 
   var chatId, text;
 
@@ -205,9 +200,6 @@ function handleTelegramUpdate_(ss, props, update) {
     chatId = String(msg.chat.id);
     text = String(msg.text || "").trim();
   }
-
-  // DEBUG TEMPORAL
-  props.setProperty("DEBUG_RAW", JSON.stringify({ chatId: chatId, text: text, isCallback: !!update.callback_query, updateId: update.update_id }));
 
   var stateKey = telegramStateKey_(chatId);
 
@@ -1016,10 +1008,6 @@ function saveTelegramState_(props, key, state) {
 }
 
 function sendTelegramMessage_(props, chatId, text, replyMarkup) {
-  // DEBUG TEMPORAL: registra el último mensaje enviado, consultable via
-  // doGet?debug=1. Quitar en cuanto se resuelva el bug de los botones de extras.
-  props.setProperty("DEBUG_ULTIMO_MENSAJE", JSON.stringify({ chatId: chatId, text: text, ts: new Date().toISOString() }));
-
   var token = props.getProperty("TELEGRAM_TOKEN");
   if (!token) {
     Logger.log("Falta TELEGRAM_TOKEN en Script Properties");
