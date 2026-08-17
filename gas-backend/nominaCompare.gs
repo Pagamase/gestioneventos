@@ -53,10 +53,13 @@ function extraerTextoPdf_(props, fileId, fileName) {
   var blob = fileResp.getBlob().setName(fileName || "nomina.pdf").setContentType("application/pdf");
   var blobInfo = "blob: " + blob.getContentType() + ", " + blob.getBytes().length + " bytes";
 
+  // Sin ocr:true a proposito: esta nomina es texto digital nativo (no un PDF
+  // escaneado), y el OCR de Drive tiene una cuota por usuario muy restrictiva.
+  // La conversion normal ya extrae el texto embebido del PDF sin pasar por esa cuota.
   var resource = { title: "tmp_nomina_" + new Date().getTime() };
   var docFile;
   try {
-    docFile = Drive.Files.insert(resource, blob, { convert: true, ocr: true, ocrLanguage: "es" });
+    docFile = Drive.Files.insert(resource, blob, { convert: true });
   } catch (err) {
     throw new Error(toErrorMessage_(err) + " [" + blobInfo + "]");
   }
