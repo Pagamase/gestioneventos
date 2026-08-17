@@ -178,14 +178,23 @@ function parseTelegramUpdate_(e) {
 }
 
 function handleTelegramUpdate_(ss, props, update) {
+  var chatIdPeek = String(
+    (update.callback_query && update.callback_query.message && update.callback_query.message.chat && update.callback_query.message.chat.id) ||
+    (update.message && update.message.chat && update.message.chat.id) ||
+    (update.edited_message && update.edited_message.chat && update.edited_message.chat.id) || ""
+  );
+  var esChatDePrueba = chatIdPeek === "999999999";
+
   // Si guardar/actualizar tarda unos segundos (Sheet + 2 calendarios), Telegram
   // no recibe la confirmacion del webhook a tiempo y reenvia el mismo update.
   // Como para entonces el estado ya se limpio, procesarlo otra vez cae en
   // "esperando fechas" y falla. Se ignoran updates ya procesados por update_id.
-  if (update.update_id !== undefined && yaProcesadoUpdate_(props, update.update_id)) {
-    return json_({ ok: true });
+  if (!esChatDePrueba) {
+    if (update.update_id !== undefined && yaProcesadoUpdate_(props, update.update_id)) {
+      return json_({ ok: true });
+    }
+    if (update.update_id !== undefined) marcarUpdateProcesado_(props, update.update_id);
   }
-  if (update.update_id !== undefined) marcarUpdateProcesado_(props, update.update_id);
 
   var chatId, text;
 
@@ -423,8 +432,11 @@ function handleEditarElegir_(props, ss, chatId, stateKey, state, text) {
 
 // Campos que viven en una celda por día (columna en collectAllEventRows_) y por
 // tanto se pueden cambiar solo para un día del evento, no para el rango entero.
-var CAMPOS_POR_DIA_ = { extras: 6, mediaJornada: 7, jefeOperador: 8 };
+var CAMPOS_POR_DIA_ = { tarifa: 4, extras: 6, mediaJornada: 7, jefeOperador: 8 };
 CAMPOS_POR_DIA_["Doble jornada"] = 9;
+
+// Campos cuyo valor de celda es texto en vez de booleano.
+var CAMPOS_TEXTO_POR_DIA_ = { tarifa: true, extras: true };
 
 function handleEditarCampo_(props, chatId, stateKey, state, text) {
   var campo = normalizeSimple_(text);
@@ -434,10 +446,7 @@ function handleEditarCampo_(props, chatId, stateKey, state, text) {
     return;
   }
   if (campo === "tarifa") {
-    state.campo = "tarifa";
-    state.step = "editar_valor";
-    saveTelegramState_(props, stateKey, state);
-    sendTelegramMessage_(props, chatId, buildTarifaMenu_(), tecladoTarifa_());
+    iniciarEdicionCampoConDia_(props, chatId, stateKey, state, "tarifa", buildTarifaMenu_());
     return;
   }
   if (campo === "nombre") {
@@ -680,7 +689,7 @@ function actualizarCampoDia_(ss, eventKey, iso, campo, valor) {
   });
   if (!filas.length) throw new Error("No se encontró el día " + iso + " en ese evento.");
 
-  var valorCelda = campo === "extras" ? String(valor) : toBool_(valor);
+  var valorCelda = CAMPOS_TEXTO_POR_DIA_[campo] ? String(valor) : toBool_(valor);
   filas[0].sheet.getRange(filas[0].row, col).setValue(valorCelda);
 }
 
@@ -1012,6 +1021,9 @@ function saveTelegramState_(props, key, state) {
 }
 
 function sendTelegramMessage_(props, chatId, text, replyMarkup) {
+  if (String(chatId) === "999999999") {
+    props.setProperty("DEBUG_ULTIMO_MENSAJE", JSON.stringify({ chatId: String(chatId), text: text, ts: new Date().toISOString() }));
+  }
   var token = props.getProperty("TELEGRAM_TOKEN");
   if (!token) {
     Logger.log("Falta TELEGRAM_TOKEN en Script Properties");
@@ -1108,6 +1120,7 @@ function tecladoDia_(dias) {
 
 function tecladoParaCampo_(campo, tarifa) {
   if (campo === "extras") return tecladoExtras_(tarifa);
+  if (campo === "tarifa") return tecladoTarifa_();
   if (campo === "mediaJornada" || campo === "jefeOperador" || campo === "Doble jornada") return tecladoSiNo_();
   return null;
 }
