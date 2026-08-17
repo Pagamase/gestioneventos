@@ -80,8 +80,10 @@ function probarPermisoDrive() {
   var resource = { title: "tmp_permiso_drive", mimeType: MimeType.GOOGLE_DOCS };
   var blob = Utilities.newBlob("prueba", "text/plain", "prueba.txt");
   var docFile = Drive.Files.insert(resource, blob);
+  var doc = DocumentApp.openById(docFile.id);
+  doc.getBody().getText();
   Drive.Files.remove(docFile.id);
-  Logger.log("Permiso de Drive concedido correctamente");
+  Logger.log("Permisos de Drive y Documentos concedidos correctamente");
 }
 
 function parseNominaPdf_(texto) {
