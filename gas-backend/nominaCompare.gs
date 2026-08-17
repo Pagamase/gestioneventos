@@ -64,7 +64,10 @@ function extraerTextoPdf_(props, fileId, fileName) {
 
 // Funcion de un solo uso: ejecutar manualmente desde el editor para forzar el
 // dialogo de autorizacion del scope de Drive (igual que se hizo con UrlFetchApp).
-function probarPermisoDrive_() {
+// OJO: sin guion bajo al final a proposito -- Apps Script oculta del desplegable
+// "Ejecutar" cualquier funcion cuyo nombre termine en "_" (las trata como privadas),
+// asi que con guion bajo esta funcion nunca podria lanzarse a mano desde el editor.
+function probarPermisoDrive() {
   var resource = { title: "tmp_permiso_drive", mimeType: MimeType.GOOGLE_DOCS };
   var blob = Utilities.newBlob("prueba", "text/plain", "prueba.txt");
   var docFile = Drive.Files.insert(resource, blob);
