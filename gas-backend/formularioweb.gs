@@ -13,19 +13,6 @@ function doGet(e) {
     var propsD = PropertiesService.getScriptProperties();
     return json_({ texto: propsD.getProperty("NOMINA_DEBUG_TEXTO") || "" });
   }
-  if (e && e.parameter && e.parameter.debugCols) {
-    var propsC = PropertiesService.getScriptProperties();
-    var spreadsheetIdC = propsC.getProperty("SPREADSHEET_ID") || "1GlBG2lRCFEkdZc8q_igLwia8ekyRGtUT5qo8sWqLgH4";
-    var ssC = SpreadsheetApp.openById(spreadsheetIdC);
-    var hojaC = ssC.getSheetByName(String(e.parameter.debugCols));
-    if (!hojaC) return json_({ error: "hoja no encontrada", nombre: e.parameter.debugCols });
-    var headerRow = hojaC.getRange(1, 1, 1, 14).getValues()[0]; // A..N headers
-    var values = hojaC.getRange(2, 1, 31, 14).getValues(); // A..N
-    var rows = values.map(function (r, i) {
-      return { dia: i + 1, A: r[0], B: r[1], C: r[2], D: r[3], E: r[4], F: r[5], G: r[6], H: r[7], I: r[8], J: r[9], K: r[10], L: r[11], M: r[12], N: r[13] };
-    }).filter(function (r) { return r.C || r.K || r.E; });
-    return json_({ hoja: hojaC.getName(), headers: headerRow, rows: rows });
-  }
   return json_({ ok: true, version: APP_VERSION });
 }
 

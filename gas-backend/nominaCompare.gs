@@ -1,7 +1,7 @@
 // Comparacion de la nomina en PDF (Fluge) contra el Sheet de Registro Jornadas.
 // El usuario manda el PDF por Telegram como documento; se convierte a texto via
 // Drive (Advanced Service), se extraen las filas fecha+importe y se comparan
-// contra la columna E (importe calculado) de la hoja del mes correspondiente.
+// contra la columna K "Total" (tarifa + extra) de la hoja del mes correspondiente.
 //
 // NOTA: Drive.Files.insert requiere el scope de Drive. Si falla con un error de
 // permisos, hay que ejecutar la funcion probarPermisoDrive_ una vez manualmente
@@ -132,13 +132,13 @@ function parseNominaPdf_(texto) {
 function leerDiasSheetNomina_(ss, sheetName) {
   var hoja = ss.getSheetByName(sheetName);
   if (!hoja) return null;
-  var values = hoja.getRange(2, 3, 31, 3).getValues(); // C evento, D tarifa, E importe
+  var values = hoja.getRange(2, 3, 31, 9).getValues(); // C evento .. K total
   var dias = {};
   for (var i = 0; i < values.length; i++) {
     dias[i + 1] = {
       evento: String(values[i][0] || "").trim(),
       tarifa: String(values[i][1] || "Ninguna"),
-      importe: Number(values[i][2]) || 0
+      importe: Number(values[i][8]) || 0
     };
   }
   return dias;
