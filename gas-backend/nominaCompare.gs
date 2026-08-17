@@ -51,9 +51,15 @@ function extraerTextoPdf_(props, fileId, fileName) {
     { muteHttpExceptions: true }
   );
   var blob = fileResp.getBlob().setName(fileName || "nomina.pdf").setContentType("application/pdf");
+  var blobInfo = "blob: " + blob.getContentType() + ", " + blob.getBytes().length + " bytes";
 
-  var resource = { title: "tmp_nomina_" + new Date().getTime(), mimeType: MimeType.GOOGLE_DOCS };
-  var docFile = Drive.Files.insert(resource, blob, { ocr: true, ocrLanguage: "es" });
+  var resource = { title: "tmp_nomina_" + new Date().getTime() };
+  var docFile;
+  try {
+    docFile = Drive.Files.insert(resource, blob, { convert: true, ocr: true, ocrLanguage: "es" });
+  } catch (err) {
+    throw new Error(toErrorMessage_(err) + " [" + blobInfo + "]");
+  }
   try {
     var doc = DocumentApp.openById(docFile.id);
     return doc.getBody().getText();
