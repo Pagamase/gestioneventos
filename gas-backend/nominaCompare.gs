@@ -101,7 +101,7 @@ function parseNominaPdf_(texto) {
     var importe = parseFloat(importeStr.replace(/\./g, "").replace(",", "."));
     if (isNaN(importe)) continue;
 
-    var categoriaMatch = chunk.match(/\d{2}-\d{2}-\d{2}\s+([A-ZÁÉÍÓÚÑ]{2}\s*-\s*[^\d]{3,60}?)(?:\s+Plantilla|\s+\d)/);
+    var categoriaMatch = chunk.match(/\d{2}-\d{2}-\d{2}\s+([A-Z]{2}\s*-\s*[^\d]{3,60}?)(?:\s+Plantilla|\s+\d)/);
     var categoria = categoriaMatch ? categoriaMatch[1].replace(/\s+/g, " ").trim() : "";
 
     filas.push({
