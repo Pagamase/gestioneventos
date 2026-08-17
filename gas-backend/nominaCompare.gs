@@ -50,7 +50,7 @@ function extraerTextoPdf_(props, fileId, fileName) {
     "https://api.telegram.org/file/bot" + token + "/" + filePath,
     { muteHttpExceptions: true }
   );
-  var blob = fileResp.getBlob().setName(fileName || "nomina.pdf");
+  var blob = fileResp.getBlob().setName(fileName || "nomina.pdf").setContentType("application/pdf");
 
   var resource = { title: "tmp_nomina_" + new Date().getTime(), mimeType: MimeType.GOOGLE_DOCS };
   var docFile = Drive.Files.insert(resource, blob, { ocr: true, ocrLanguage: "es" });
