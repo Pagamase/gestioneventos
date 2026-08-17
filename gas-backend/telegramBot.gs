@@ -214,9 +214,9 @@ function handleTelegramUpdate_(ss, props, update) {
     return json_({ ok: true });
   }
 
-  if (/^\/(cancelar|cancel)\b/i.test(text)) {
+  if (/^\/(cancelar|cancel)\b/i.test(text) || normalizeSimple_(text) === "cancelar") {
     props.deleteProperty(stateKey);
-    sendTelegramMessage_(props, chatId, "Vale, cancelado.", TECLADO_PRINCIPAL_);
+    sendTelegramMessage_(props, chatId, "Cancelado. Aquí tienes el menú principal 👇", TECLADO_PRINCIPAL_);
     return json_({ ok: true });
   }
 
@@ -1051,6 +1051,7 @@ function teclado_(botones, columnas) {
       return { text: b.text, callback_data: b.data };
     }));
   }
+  filas.push([{ text: "❌ Cancelar", callback_data: "cancelar" }]);
   return { inline_keyboard: filas };
 }
 
