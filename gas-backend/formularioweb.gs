@@ -13,6 +13,22 @@ function doGet(e) {
     var propsD = PropertiesService.getScriptProperties();
     return json_({ texto: propsD.getProperty("NOMINA_DEBUG_TEXTO") || "" });
   }
+  if (e && e.parameter && e.parameter.debugMes) {
+    var propsM = PropertiesService.getScriptProperties();
+    var spreadsheetIdM = propsM.getProperty("SPREADSHEET_ID") || "1GlBG2lRCFEkdZc8q_igLwia8ekyRGtUT5qo8sWqLgH4";
+    var ssM = SpreadsheetApp.openById(spreadsheetIdM);
+    var hojaM = ssM.getSheetByName(String(e.parameter.debugMes));
+    if (!hojaM) return json_({ error: "hoja no encontrada", nombre: e.parameter.debugMes });
+    var values = hojaM.getRange(2, 3, 31, 7).getValues(); // C..I
+    var rows = values.map(function (r, i) {
+      return { dia: i + 1, evento: r[0], tarifa: r[1], extras: r[3], mediaJornada: r[4], jefeOperador: r[5], dobleJornada: r[6] };
+    }).filter(function (r) { return r.evento; });
+    return json_({ hoja: hojaM.getName(), rows: rows });
+  }
+  if (e && e.parameter && e.parameter.debugChat === "1") {
+    var propsCh = PropertiesService.getScriptProperties();
+    return json_({ ultimoMensaje: JSON.parse(propsCh.getProperty("DEBUG_ULTIMO_MENSAJE") || "null") });
+  }
   return json_({ ok: true, version: APP_VERSION });
 }
 

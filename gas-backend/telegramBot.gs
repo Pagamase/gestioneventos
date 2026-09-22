@@ -178,14 +178,23 @@ function parseTelegramUpdate_(e) {
 }
 
 function handleTelegramUpdate_(ss, props, update) {
+  var chatIdPeek = String(
+    (update.callback_query && update.callback_query.message && update.callback_query.message.chat && update.callback_query.message.chat.id) ||
+    (update.message && update.message.chat && update.message.chat.id) ||
+    (update.edited_message && update.edited_message.chat && update.edited_message.chat.id) || ""
+  );
+  var esChatDePrueba = chatIdPeek === "999999999";
+
   // Si guardar/actualizar tarda unos segundos (Sheet + 2 calendarios), Telegram
   // no recibe la confirmacion del webhook a tiempo y reenvia el mismo update.
   // Como para entonces el estado ya se limpio, procesarlo otra vez cae en
   // "esperando fechas" y falla. Se ignoran updates ya procesados por update_id.
-  if (update.update_id !== undefined && yaProcesadoUpdate_(props, update.update_id)) {
-    return json_({ ok: true });
+  if (!esChatDePrueba) {
+    if (update.update_id !== undefined && yaProcesadoUpdate_(props, update.update_id)) {
+      return json_({ ok: true });
+    }
+    if (update.update_id !== undefined) marcarUpdateProcesado_(props, update.update_id);
   }
-  if (update.update_id !== undefined) marcarUpdateProcesado_(props, update.update_id);
 
   var chatId, text;
 
@@ -262,7 +271,7 @@ function handleTelegramUpdate_(ss, props, update) {
   } else if (state.step === "editar_valor") {
     handleEditarValor_(props, ss, chatId, stateKey, state, text);
   } else if (state.step === "awaiting_evento") {
-    handleAwaitingEvento_(props, chatId, stateKey, state, text);
+    handleAwaitingEvento_(props, ss, chatId, stateKey, state, text);
   } else if (state.step === "awaiting_tarifa") {
     handleAwaitingTarifa_(props, ss, chatId, stateKey, state, text);
   } else {
@@ -735,12 +744,22 @@ function handleAwaitingDias_(props, chatId, stateKey, state, text) {
   sendTelegramMessage_(props, chatId, "¿Nombre del evento/cliente para esos días?");
 }
 
-function handleAwaitingEvento_(props, chatId, stateKey, state, text) {
+// Nombres de evento que nunca generan ingreso: se guardan directamente con
+// tarifa "Ninguna" sin preguntar, en vez de mostrar el menu de tarifas.
+var SIN_TARIFA_ = ["descanso", "medio descanso", "vacaciones", "libre", "medio libre", "permiso"];
+
+function handleAwaitingEvento_(props, ss, chatId, stateKey, state, text) {
   if (!text) {
     sendTelegramMessage_(props, chatId, "Necesito un nombre para el evento. ¿Cómo se llama?");
     return;
   }
   state.evento = text;
+
+  if (SIN_TARIFA_.indexOf(normalizeSimple_(text)) !== -1) {
+    guardarEventoConTarifa_(props, ss, chatId, stateKey, state, "Ninguna");
+    return;
+  }
+
   state.step = "awaiting_tarifa";
   saveTelegramState_(props, stateKey, state);
   sendTelegramMessage_(props, chatId, buildTarifaMenu_(), tecladoTarifa_());
@@ -752,7 +771,10 @@ function handleAwaitingTarifa_(props, ss, chatId, stateKey, state, text) {
     sendTelegramMessage_(props, chatId, "No he reconocido esa tarifa.\n" + buildTarifaMenu_(), tecladoTarifa_());
     return;
   }
+  guardarEventoConTarifa_(props, ss, chatId, stateKey, state, tarifa);
+}
 
+function guardarEventoConTarifa_(props, ss, chatId, stateKey, state, tarifa) {
   var fechas = (state.dias || [])
     .map(parseIsoDate_)
     .filter(Boolean)
@@ -1012,6 +1034,9 @@ function saveTelegramState_(props, key, state) {
 }
 
 function sendTelegramMessage_(props, chatId, text, replyMarkup) {
+  if (String(chatId) === "999999999") {
+    props.setProperty("DEBUG_ULTIMO_MENSAJE", JSON.stringify({ chatId: String(chatId), text: text, ts: new Date().toISOString() }));
+  }
   var token = props.getProperty("TELEGRAM_TOKEN");
   if (!token) {
     Logger.log("Falta TELEGRAM_TOKEN en Script Properties");
