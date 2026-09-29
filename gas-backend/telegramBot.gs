@@ -830,8 +830,7 @@ function guardarEventoConTarifa_(props, ss, chatId, stateKey, state, tarifa) {
 }
 
 function buildTarifaMenu_() {
-  var lines = TARIFAS_DISPONIBLES.map(function (t, i) { return (i + 1) + ". " + t; });
-  return "Elige la tarifa (responde con el número):\n" + lines.join("\n");
+  return "Elige la tarifa:";
 }
 
 function resolveTarifaFromText_(text) {
