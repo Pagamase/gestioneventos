@@ -210,13 +210,17 @@ function handleTelegramUpdate_(ss, props, update) {
   if (/^\/(start|cuadrante)\b/i.test(text) || text === "📅 Nuevo evento") {
     var freshState = { step: "awaiting_days" };
     saveTelegramState_(props, stateKey, freshState);
-    sendTelegramMessage_(props, chatId, MENSAJE_PIDE_DIAS_, TECLADO_PRINCIPAL_);
+    sendTelegramMessage_(props, chatId, MENSAJE_PIDE_DIAS_, tecladoAbrirCalendario_());
     return json_({ ok: true });
   }
 
   if (/^\/(cancelar|cancel)\b/i.test(text) || normalizeSimple_(text) === "cancelar") {
     props.deleteProperty(stateKey);
     sendTelegramMessage_(props, chatId, "Cancelado. Aquí tienes el menú principal 👇", TECLADO_PRINCIPAL_);
+    return json_({ ok: true });
+  }
+
+  if (text === "noop") {
     return json_({ ok: true });
   }
 
@@ -245,6 +249,13 @@ function handleTelegramUpdate_(ss, props, update) {
 
   var state = readTelegramState_(props, stateKey) || { step: "awaiting_days" };
 
+  if (text === "abrir_calendario") {
+    var modoCal = state.step === "vacaciones_fechas" ? "vacaciones" :
+      (state.step === "editar_valor" && state.campo === "fechas") ? "fechasEditar" : "dias";
+    iniciarCalendario_(props, chatId, stateKey, state, modoCal);
+    return json_({ ok: true });
+  }
+
   if (state.step === "editar_buscar") {
     handleEditarBuscar_(props, ss, chatId, stateKey, state, text);
   } else if (state.step === "editar_buscar_mes") {
@@ -261,6 +272,8 @@ function handleTelegramUpdate_(ss, props, update) {
     handleEditarDia_(props, chatId, stateKey, state, text);
   } else if (state.step === "editar_valor") {
     handleEditarValor_(props, ss, chatId, stateKey, state, text);
+  } else if (state.step === "calendario") {
+    handleCalendario_(props, ss, chatId, stateKey, state, text);
   } else if (state.step === "awaiting_evento") {
     handleAwaitingEvento_(props, ss, chatId, stateKey, state, text);
   } else if (state.step === "awaiting_tarifa") {
@@ -287,7 +300,7 @@ function iniciarVacaciones_(props, chatId, stateKey) {
   }
 
   saveTelegramState_(props, stateKey, { step: "vacaciones_fechas" });
-  sendTelegramMessage_(props, chatId, '¿Qué fechas no quieres que te escriba? (ej: "15/08 al 30/08")', TECLADO_PRINCIPAL_);
+  sendTelegramMessage_(props, chatId, '¿Qué fechas no quieres que te escriba? (ej: "15/08 al 30/08")', tecladoAbrirCalendario_());
 }
 
 function handleVacacionesFechas_(props, chatId, stateKey, state, text) {
@@ -451,7 +464,7 @@ function handleEditarCampo_(props, chatId, stateKey, state, text) {
     state.campo = "fechas";
     state.step = "editar_valor";
     saveTelegramState_(props, stateKey, state);
-    sendTelegramMessage_(props, chatId, '¿Nuevas fechas para el evento? (ej: "15/08 al 20/08", "15 de agosto", "lunes a miércoles")');
+    sendTelegramMessage_(props, chatId, '¿Nuevas fechas para el evento? (ej: "15/08 al 20/08", "15 de agosto", "lunes a miércoles")', tecladoAbrirCalendario_());
     return;
   }
   if (campo === "media jornada" || campo === "mediajornada") {
@@ -626,6 +639,13 @@ function handleEditarValor_(props, ss, chatId, stateKey, state, text) {
     return;
   }
 
+  guardarValorEditado_(props, ss, chatId, stateKey, state, campo, valor);
+}
+
+// Aplica el valor ya resuelto (por texto, boton o calendario) a un evento en
+// edicion: por dia si el campo lo permite y hay un dia especifico elegido, o
+// al evento completo si no.
+function guardarValorEditado_(props, ss, chatId, stateKey, state, campo, valor) {
   if (state.diaEspecifico && CAMPOS_POR_DIA_[campo]) {
     try {
       actualizarCampoDia_(ss, state.eventKey, state.diaEspecifico, campo, valor);
@@ -1118,6 +1138,132 @@ function tecladoDia_(dias) {
     botones = botones.concat(dias.map(function (iso) { return { text: formatFechaDisplay_(iso), data: iso }; }));
   }
   return teclado_(botones, 1);
+}
+
+// ---- Calendario visual (teclado inline con la cuadricula del mes) ----
+
+var DIAS_SEMANA_CORTO_ = ["L", "M", "X", "J", "V", "S", "D"];
+
+function tecladoAbrirCalendario_() {
+  return teclado_([{ text: "📅 Elegir en calendario", data: "abrir_calendario" }], 1);
+}
+
+function calMesAnterior_(anio, mes) {
+  mes -= 1;
+  if (mes < 0) { mes = 11; anio -= 1; }
+  return anio + "-" + pad2_(mes + 1);
+}
+
+function calMesSiguiente_(anio, mes) {
+  mes += 1;
+  if (mes > 11) { mes = 0; anio += 1; }
+  return anio + "-" + pad2_(mes + 1);
+}
+
+function tecladoCalendario_(anio, mes, extraBotones) {
+  var filas = [];
+  filas.push([
+    { text: "‹", callback_data: "calnav:" + calMesAnterior_(anio, mes) },
+    { text: MONTH_NAMES[mes] + " " + anio, callback_data: "noop" },
+    { text: "›", callback_data: "calnav:" + calMesSiguiente_(anio, mes) }
+  ]);
+  filas.push(DIAS_SEMANA_CORTO_.map(function (d) { return { text: d, callback_data: "noop" }; }));
+
+  var primerDia = new Date(anio, mes, 1);
+  var offset = (primerDia.getDay() + 6) % 7; // lunes = 0
+  var diasEnMes = new Date(anio, mes + 1, 0).getDate();
+
+  var semana = [];
+  for (var i = 0; i < offset; i++) semana.push({ text: " ", callback_data: "noop" });
+  for (var dia = 1; dia <= diasEnMes; dia++) {
+    var iso = anio + "-" + pad2_(mes + 1) + "-" + pad2_(dia);
+    semana.push({ text: String(dia), callback_data: "calday:" + iso });
+    if (semana.length === 7) {
+      filas.push(semana);
+      semana = [];
+    }
+  }
+  if (semana.length) {
+    while (semana.length < 7) semana.push({ text: " ", callback_data: "noop" });
+    filas.push(semana);
+  }
+
+  if (extraBotones && extraBotones.length) filas.push(extraBotones);
+  filas.push([{ text: "❌ Cancelar", callback_data: "cancelar" }]);
+  return { inline_keyboard: filas };
+}
+
+function tecladoCalendarioEstado_(state) {
+  var extra = state.calInicio ? [{ text: "Solo este día", callback_data: "calsolo" }] : null;
+  return tecladoCalendario_(state.calAnio, state.calMes, extra);
+}
+
+function iniciarCalendario_(props, chatId, stateKey, state, modo) {
+  var hoy = new Date();
+  state.calModo = modo;
+  state.calAnio = hoy.getFullYear();
+  state.calMes = hoy.getMonth();
+  state.calInicio = null;
+  state.step = "calendario";
+  saveTelegramState_(props, stateKey, state);
+  sendTelegramMessage_(props, chatId, "Elige la fecha de inicio:", tecladoCalendarioEstado_(state));
+}
+
+function handleCalendario_(props, ss, chatId, stateKey, state, text) {
+  if (text === "noop") return;
+
+  if (/^calnav:/.test(text)) {
+    var partes = text.slice(7).split("-");
+    state.calAnio = parseInt(partes[0], 10);
+    state.calMes = parseInt(partes[1], 10) - 1;
+    saveTelegramState_(props, stateKey, state);
+    var msg = state.calInicio ? ("Inicio: " + formatFechaDisplay_(state.calInicio) + ". Toca la fecha de fin (o \"Solo este día\").") : "Elige la fecha de inicio:";
+    sendTelegramMessage_(props, chatId, msg, tecladoCalendarioEstado_(state));
+    return;
+  }
+
+  if (text === "calsolo" && state.calInicio) {
+    finalizarCalendario_(props, ss, chatId, stateKey, state, state.calInicio, state.calInicio);
+    return;
+  }
+
+  if (/^calday:/.test(text)) {
+    var iso = text.slice(7);
+    if (!state.calInicio || iso < state.calInicio) {
+      state.calInicio = iso;
+      saveTelegramState_(props, stateKey, state);
+      sendTelegramMessage_(props, chatId, "Inicio: " + formatFechaDisplay_(iso) + ". Toca la fecha de fin (o \"Solo este día\").", tecladoCalendarioEstado_(state));
+      return;
+    }
+    finalizarCalendario_(props, ss, chatId, stateKey, state, state.calInicio, iso);
+    return;
+  }
+}
+
+function finalizarCalendario_(props, ss, chatId, stateKey, state, inicioIso, finIso) {
+  var modo = state.calModo;
+
+  if (modo === "dias") {
+    var dias = expandDateRange_(parseIsoDate_(inicioIso), parseIsoDate_(finIso));
+    state.dias = dias.map(toIsoDate_);
+    state.step = "awaiting_evento";
+    saveTelegramState_(props, stateKey, state);
+    sendTelegramMessage_(props, chatId, "Fechas: " + formatRangoDisplay_(inicioIso, finIso) + ". ¿Nombre del evento/cliente para esos días?");
+    return;
+  }
+
+  if (modo === "vacaciones") {
+    props.setProperty("VACACIONES_INICIO", inicioIso);
+    props.setProperty("VACACIONES_FIN", finIso);
+    props.deleteProperty(stateKey);
+    sendTelegramMessage_(props, chatId, "Vale, no te escribiré entre " + formatFechaDisplay_(inicioIso) + " y " + formatFechaDisplay_(finIso) + ".", TECLADO_PRINCIPAL_);
+    return;
+  }
+
+  if (modo === "fechasEditar") {
+    guardarValorEditado_(props, ss, chatId, stateKey, state, "fechas", { fechaInicio: inicioIso, fechaFin: finIso });
+    return;
+  }
 }
 
 function tecladoParaCampo_(campo, tarifa) {
