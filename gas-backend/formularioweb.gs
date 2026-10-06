@@ -13,6 +13,28 @@ function doGet(e) {
     var propsD = PropertiesService.getScriptProperties();
     return json_({ texto: propsD.getProperty("NOMINA_DEBUG_TEXTO") || "" });
   }
+  if (e && e.parameter && e.parameter.debugEvento) {
+    var propsE = PropertiesService.getScriptProperties();
+    var spreadsheetIdE = propsE.getProperty("SPREADSHEET_ID") || "1GlBG2lRCFEkdZc8q_igLwia8ekyRGtUT5qo8sWqLgH4";
+    var ssE = SpreadsheetApp.openById(spreadsheetIdE);
+    var query = String(e.parameter.debugEvento).toLowerCase();
+    var rows = collectAllEventRows_(ssE).filter(function (r) {
+      return r.evento.toLowerCase().indexOf(query) !== -1;
+    });
+    var out = rows.map(function (r) {
+      return {
+        iso: r.iso,
+        hoja: r.sheet.getName(),
+        fila: r.row,
+        evento: r.evento,
+        eventKey: r.noteData.eventKey,
+        startDate: r.noteData.startDate,
+        endDate: r.noteData.endDate,
+        exceptions: r.noteData.exceptions
+      };
+    });
+    return json_({ rows: out });
+  }
   return json_({ ok: true, version: APP_VERSION });
 }
 
