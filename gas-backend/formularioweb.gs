@@ -836,7 +836,7 @@ function borrarPorTituloEnCalendario_(cal, titulo, fechaObjetivo) {
 
     var dt = ev.isAllDayEvent() ? ev.getAllDayStartDate() : ev.getStartTime();
     var evDay = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime();
-    var deltaDays = Math.abs((evDay - base) / 86400000);
+    var deltaDays = Math.round(Math.abs((evDay - base) / 86400000));
     if (deltaDays <= 1 && safeDeleteEvent_(ev)) {
       removed++;
     }
@@ -856,7 +856,7 @@ function borrarAllDayEnCalendarioPorDia_(cal, fechaObjetivo) {
     if (!ev.isAllDayEvent()) return;
     var dt = ev.getAllDayStartDate();
     var evDay = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime();
-    var deltaDays = Math.abs((evDay - base) / 86400000);
+    var deltaDays = Math.round(Math.abs((evDay - base) / 86400000));
     if (deltaDays <= 1 && safeDeleteEvent_(ev)) {
       removed++;
     }
@@ -1130,7 +1130,11 @@ function isConsecutiveDate_(a, b) {
   if (!a || !b) return false;
   var da = new Date(a.getFullYear(), a.getMonth(), a.getDate());
   var db = new Date(b.getFullYear(), b.getMonth(), b.getDate());
-  var diff = (db.getTime() - da.getTime()) / 86400000;
+  // Math.round en vez de comparar milisegundos exactos: el dia del cambio de
+  // hora (ultimo domingo de octubre/marzo) tiene 23h o 25h, no 24h, asi que
+  // dividir por 86400000 da 0.96 o 1.04 en vez de 1 y rompia la deteccion de
+  // dias consecutivos justo en esa fecha.
+  var diff = Math.round((db.getTime() - da.getTime()) / 86400000);
   return diff === 1;
 }
 
