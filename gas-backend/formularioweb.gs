@@ -13,6 +13,10 @@ function doGet(e) {
     var propsD = PropertiesService.getScriptProperties();
     return json_({ texto: propsD.getProperty("NOMINA_DEBUG_TEXTO") || "" });
   }
+  if (e && e.parameter && e.parameter.debugChat === "1") {
+    var propsCh = PropertiesService.getScriptProperties();
+    return json_({ ultimoMensaje: JSON.parse(propsCh.getProperty("DEBUG_ULTIMO_MENSAJE") || "null") });
+  }
   return json_({ ok: true, version: APP_VERSION });
 }
 
