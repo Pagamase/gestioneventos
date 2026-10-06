@@ -117,7 +117,7 @@ function resolveExtraFromText_(tarifa, text) {
 
 // Teclado fijo (no va pegado a un mensaje concreto, se queda siempre visible
 // debajo de donde se escribe) para no tener que teclear /cuadrante o /editar.
-var TECLADO_PRINCIPAL_ = { keyboard: [["📅 Nuevo evento", "✏️ Editar", "🏖️ Vacaciones"]], resize_keyboard: true };
+var TECLADO_PRINCIPAL_ = { keyboard: [["📅 Nuevo evento", "✏️ Editar", "🏖️ Vacaciones"], ["💰 Ganancia"]], resize_keyboard: true };
 
 function enviarPreguntaCuadrante() {
   var props = PropertiesService.getScriptProperties();
@@ -240,6 +240,18 @@ function handleTelegramUpdate_(ss, props, update) {
     return json_({ ok: true });
   }
 
+  if (/^\/ganancia\b/i.test(text) || text === "💰 Ganancia") {
+    var hoyG = new Date();
+    mostrarGanancia_(props, ss, chatId, hoyG.getFullYear(), hoyG.getMonth());
+    return json_({ ok: true });
+  }
+
+  if (/^ganancia:/.test(text)) {
+    var partesG = text.slice("ganancia:".length).split("-");
+    mostrarGanancia_(props, ss, chatId, parseInt(partesG[0], 10), parseInt(partesG[1], 10) - 1);
+    return json_({ ok: true });
+  }
+
   if (text === "quitarvacaciones") {
     props.deleteProperty("VACACIONES_INICIO");
     props.deleteProperty("VACACIONES_FIN");
@@ -283,6 +295,41 @@ function handleTelegramUpdate_(ss, props, update) {
   }
 
   return json_({ ok: true });
+}
+
+// ---- Consultar ganancia ----
+
+function formatEuros_(n) {
+  n = Number(n) || 0;
+  return n.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+}
+
+function tecladoGananciaNav_(anio, mes) {
+  return teclado_([
+    { text: "‹ " + MONTH_NAMES[(mes + 11) % 12], data: "ganancia:" + calMesAnterior_(anio, mes) },
+    { text: MONTH_NAMES[(mes + 1) % 12] + " ›", data: "ganancia:" + calMesSiguiente_(anio, mes) }
+  ], 2);
+}
+
+function mostrarGanancia_(props, ss, chatId, anio, mes) {
+  var sheetName = MONTH_NAMES[mes] + " - " + anio;
+  var data;
+  try {
+    data = JSON.parse(handleConsulta_(ss, { mes: sheetName }).getContent());
+  } catch (err) {
+    sendTelegramMessage_(props, chatId, "⚠️ No he podido consultar " + sheetName + ": " + toErrorMessage_(err), tecladoGananciaNav_(anio, mes));
+    return;
+  }
+
+  if (data.error) {
+    sendTelegramMessage_(props, chatId, "⚠️ No tengo datos para " + sheetName + ".", tecladoGananciaNav_(anio, mes));
+    return;
+  }
+
+  sendTelegramMessage_(props, chatId,
+    "💰 " + sheetName + "\nTotal: " + formatEuros_(data.total) + "\nReal: " + formatEuros_(data.real),
+    tecladoGananciaNav_(anio, mes)
+  );
 }
 
 // ---- Modo vacaciones ----
