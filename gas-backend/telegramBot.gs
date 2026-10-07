@@ -117,7 +117,7 @@ function resolveExtraFromText_(tarifa, text) {
 
 // Teclado fijo (no va pegado a un mensaje concreto, se queda siempre visible
 // debajo de donde se escribe) para no tener que teclear /cuadrante o /editar.
-var TECLADO_PRINCIPAL_ = { keyboard: [["📅 Nuevo evento", "✏️ Editar", "🏖️ Vacaciones"], ["💰 Ganancia"]], resize_keyboard: true };
+var TECLADO_PRINCIPAL_ = { keyboard: [["📅 Nuevo evento", "✏️ Editar", "🏖️ Vacaciones"], ["🛌 Descansos", "💰 Ganancia"]], resize_keyboard: true };
 
 function enviarPreguntaCuadrante() {
   var props = PropertiesService.getScriptProperties();
@@ -235,6 +235,15 @@ function handleTelegramUpdate_(ss, props, update) {
     return json_({ ok: true });
   }
 
+  if (/^\/descanso(s)?\b/i.test(text) || text === "🛌 Descansos") {
+    saveTelegramState_(props, stateKey, { step: "descanso_dias" });
+    sendTelegramMessage_(props, chatId,
+      '¿Qué días quieres de descanso? Puedes darme fechas (ej: "15/08 al 17/08") o abrir el calendario. Se guardan directamente como "Descanso", sin preguntar tarifa.',
+      tecladoAbrirCalendario_()
+    );
+    return json_({ ok: true });
+  }
+
   if (/^\/menu\b/i.test(text)) {
     sendTelegramMessage_(props, chatId, "Menú actualizado 👇", TECLADO_PRINCIPAL_);
     return json_({ ok: true });
@@ -263,6 +272,7 @@ function handleTelegramUpdate_(ss, props, update) {
 
   if (text === "abrir_calendario") {
     var modoCal = state.step === "vacaciones_fechas" ? "vacaciones" :
+      state.step === "descanso_dias" ? "descanso" :
       (state.step === "editar_valor" && state.campo === "fechas") ? "fechasEditar" : "dias";
     iniciarCalendario_(props, chatId, stateKey, state, modoCal);
     return json_({ ok: true });
@@ -274,6 +284,8 @@ function handleTelegramUpdate_(ss, props, update) {
     handleEditarBuscarMes_(props, ss, chatId, stateKey, state, text);
   } else if (state.step === "vacaciones_fechas") {
     handleVacacionesFechas_(props, chatId, stateKey, state, text);
+  } else if (state.step === "descanso_dias") {
+    handleDescansoDias_(props, ss, chatId, stateKey, state, text);
   } else if (state.step === "editar_elegir") {
     handleEditarElegir_(props, ss, chatId, stateKey, state, text);
   } else if (state.step === "editar_campo") {
@@ -351,6 +363,23 @@ function iniciarVacaciones_(props, chatId, stateKey) {
 
   saveTelegramState_(props, stateKey, { step: "vacaciones_fechas" });
   sendTelegramMessage_(props, chatId, '¿Qué fechas no quieres que te escriba? (ej: "15/08 al 30/08")', tecladoAbrirCalendario_());
+}
+
+// ---- Modo descansos: guarda directamente "Descanso" sin pedir nombre ni tarifa ----
+
+function handleDescansoDias_(props, ss, chatId, stateKey, state, text) {
+  var dias = parseFechas_(text);
+  if (!dias || dias.length === 0) {
+    sendTelegramMessage_(props, chatId,
+      'No he entendido esas fechas. Prueba con algo como "15/08 al 17/08" o abre el calendario.',
+      tecladoAbrirCalendario_()
+    );
+    return;
+  }
+
+  state.dias = dias.map(function (d) { return toIsoDate_(d); });
+  state.evento = "Descanso";
+  guardarEventoConTarifa_(props, ss, chatId, stateKey, state, "Ninguna");
 }
 
 function handleVacacionesFechas_(props, chatId, stateKey, state, text) {
@@ -1298,6 +1327,14 @@ function finalizarCalendario_(props, ss, chatId, stateKey, state, inicioIso, fin
     state.step = "awaiting_evento";
     saveTelegramState_(props, stateKey, state);
     sendTelegramMessage_(props, chatId, "Fechas: " + formatRangoDisplay_(inicioIso, finIso) + ". ¿Nombre del evento/cliente para esos días?");
+    return;
+  }
+
+  if (modo === "descanso") {
+    var diasDescanso = expandDateRange_(parseIsoDate_(inicioIso), parseIsoDate_(finIso));
+    state.dias = diasDescanso.map(toIsoDate_);
+    state.evento = "Descanso";
+    guardarEventoConTarifa_(props, ss, chatId, stateKey, state, "Ninguna");
     return;
   }
 
